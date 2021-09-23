@@ -18,6 +18,7 @@
 #include "vec/exec/join/vhash_join_node.h"
 
 #include "gen_cpp/PlanNodes_types.h"
+#include "runtime/mem_tracker.h"
 #include "util/defer_op.h"
 #include "vec/core/materialize_block.h"
 #include "vec/exprs/vexpr.h"
@@ -44,13 +45,17 @@ struct ProcessHashTableBuild {
 
         Defer defer {[&]() {
             int64_t bucket_size = hash_table_ctx.hash_table.get_buffer_size_in_cells();
+            int64_t bucket_bytes = hash_table_ctx.hash_table.get_buffer_size_in_bytes();
+            _join_node->_mem_tracker->Consume(bucket_bytes);
             COUNTER_SET(_join_node->_build_buckets_counter, bucket_size);
         }};
 
         KeyGetter key_getter(_build_raw_ptrs, _join_node->_build_key_sz, nullptr);
 
+        int64_t bucket_bytes = hash_table_ctx.hash_table.get_buffer_size_in_bytes();
+        _join_node->_mem_tracker->Release(bucket_bytes);
         SCOPED_TIMER(_join_node->_build_table_insert_timer);
-        hash_table_ctx.hash_table.reset_hash_timer();
+        hash_table_ctx.hash_table.reset_resize_timer();
 
         for (size_t k = 0; k < _rows; ++k) {
             if constexpr (ignore_null) {
@@ -84,9 +89,8 @@ struct ProcessHashTableBuild {
                 _join_node->_acquire_list.remove_last_element();
             }
         }
-
-        COUNTER_UPDATE(_join_node->_build_hash_calc_timer,
-                       hash_table_ctx.hash_table.get_hash_timer_value());
+        COUNTER_UPDATE(_join_node->_build_table_expanse_timer,
+                       hash_table_ctx.hash_table.get_resize_timer_value());
 
         return Status::OK();
     }
@@ -233,8 +237,6 @@ struct ProcessHashTableProbe {
         int right_col_len = _right_table_data_types.size();
         int current_offset = 0;
 
-        hash_table_ctx.hash_table.reset_hash_timer();
-
         for (; _probe_index < _probe_rows;) {
             // ignore null rows
             if constexpr (ignore_null) {
@@ -295,9 +297,6 @@ struct ProcessHashTableProbe {
                 break;
             }
         }
-
-        COUNTER_UPDATE(_join_node->_probe_hash_calc_timer,
-                       hash_table_ctx.hash_table.get_hash_timer_value());
 
         for (int i = _probe_index; i < _probe_rows; ++i) {
             offset_data[i] = current_offset;
@@ -528,8 +527,6 @@ Status HashJoinNode::prepare(RuntimeState* state) {
     runtime_profile()->add_child(build_phase_profile, false, nullptr);
     _build_timer = ADD_TIMER(build_phase_profile, "BuildTime");
     _build_table_timer = ADD_TIMER(build_phase_profile, "BuildTableTime");
-    _build_hash_calc_timer = ADD_TIMER(build_phase_profile, "BuildHashCalcTime");
-    _build_expr_call_timer = ADD_TIMER(build_phase_profile, "BuildExprCallTime");
     _build_table_insert_timer = ADD_TIMER(build_phase_profile, "BuildTableInsertTime");
     _build_table_spread_timer = ADD_TIMER(build_phase_profile, "BuildTableExpanseTime");
     _build_rows_counter = ADD_COUNTER(build_phase_profile, "BuildRows", TUnit::UNIT);
@@ -539,7 +536,6 @@ Status HashJoinNode::prepare(RuntimeState* state) {
     _probe_timer = ADD_TIMER(probe_phase_profile, "ProbeTime");
     _probe_next_timer = ADD_TIMER(probe_phase_profile, "ProbeFindNextTime");
     _probe_expr_call_timer = ADD_TIMER(probe_phase_profile, "ProbeExprCallTime");
-    _probe_hash_calc_timer = ADD_TIMER(probe_phase_profile, "ProbeHashCalcTime");
     _probe_rows_counter = ADD_COUNTER(probe_phase_profile, "ProbeRows", TUnit::UNIT);
 
     _push_down_timer = ADD_TIMER(runtime_profile(), "PushDownTime");           // Unrealized
@@ -744,6 +740,7 @@ Status HashJoinNode::_hash_table_build(RuntimeState* state) {
         block.clear();
         RETURN_IF_CANCELLED(state);
         RETURN_IF_ERROR(child(1)->get_next(state, &block, &eos));
+        _mem_tracker->Consume(block.allocated_bytes());
         RETURN_IF_ERROR(_process_build_block(block));
     }
     return Status::OK();
