@@ -712,11 +712,6 @@ Status HashJoinNode::get_next(RuntimeState* state, Block* output_block, bool* eo
     COUNTER_UPDATE(_rows_returned_counter, m);
     _num_rows_returned += m;
 
-    // In most cases, no additional memory overhead will be applied for at this stage,
-    // but if the expression calculation in this node needs to apply for additional memory,
-    // it may cause the memory to exceed the limit.
-    RETURN_IF_LIMIT_EXCEEDED(state, "Hash join, while execute get_next.");
-
     return st;
 }
 
