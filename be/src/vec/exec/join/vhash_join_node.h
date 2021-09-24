@@ -158,14 +158,15 @@ private:
     RuntimeProfile::Counter* _probe_timer;
     RuntimeProfile::Counter* _probe_expr_call_timer;
     RuntimeProfile::Counter* _probe_next_timer;
-    RuntimeProfile::Counter* _build_buckets_counter;
 
+    RuntimeProfile::Counter* _build_buckets_counter;
     RuntimeProfile::Counter* _push_down_timer;
     RuntimeProfile::Counter* _push_compute_timer;
     RuntimeProfile::Counter* _build_rows_counter;
     RuntimeProfile::Counter* _probe_rows_counter;
 
     int64_t _hash_table_rows;
+    int64_t _hash_table_bytes = 0;
 
     Arena _arena;
     HashTableVariants _hash_table_variants;

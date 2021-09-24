@@ -42,18 +42,18 @@ struct ProcessHashTableBuild {
     Status operator()(HashTableContext& hash_table_ctx, ConstNullMapPtr null_map) {
         using KeyGetter = typename HashTableContext::State;
         using Mapped = typename HashTableContext::Mapped;
+        int64_t old_bucket_bytes = hash_table_ctx.hash_table.get_buffer_size_in_bytes();
 
         Defer defer {[&]() {
             int64_t bucket_size = hash_table_ctx.hash_table.get_buffer_size_in_cells();
             int64_t bucket_bytes = hash_table_ctx.hash_table.get_buffer_size_in_bytes();
-            _join_node->_mem_tracker->Consume(bucket_bytes);
+            _join_node->_mem_tracker->Consume(bucket_bytes - old_bucket_bytes);
+            _join_node->_hash_table_bytes += bucket_bytes - old_bucket_bytes;
             COUNTER_SET(_join_node->_build_buckets_counter, bucket_size);
         }};
 
         KeyGetter key_getter(_build_raw_ptrs, _join_node->_build_key_sz, nullptr);
 
-        int64_t bucket_bytes = hash_table_ctx.hash_table.get_buffer_size_in_bytes();
-        _join_node->_mem_tracker->Release(bucket_bytes);
         SCOPED_TIMER(_join_node->_build_table_insert_timer);
         hash_table_ctx.hash_table.reset_resize_timer();
 
@@ -528,7 +528,7 @@ Status HashJoinNode::prepare(RuntimeState* state) {
     _build_timer = ADD_TIMER(build_phase_profile, "BuildTime");
     _build_table_timer = ADD_TIMER(build_phase_profile, "BuildTableTime");
     _build_table_insert_timer = ADD_TIMER(build_phase_profile, "BuildTableInsertTime");
-    _build_table_spread_timer = ADD_TIMER(build_phase_profile, "BuildTableExpanseTime");
+    _build_expr_call_timer = ADD_TIMER(build_phase_profile, "BuildExprCallTime");
     _build_rows_counter = ADD_COUNTER(build_phase_profile, "BuildRows", TUnit::UNIT);
 
     // Probe phase
@@ -568,6 +568,9 @@ Status HashJoinNode::close(RuntimeState* state) {
     }
 
     if (_vother_join_conjunct_ptr) (*_vother_join_conjunct_ptr)->close(state);
+    _mem_tracker->Release(_hash_table_bytes);
+    _mem_tracker->Release(_acquire_list.element_bytes());
+    _hash_table_bytes = 0;
     return ExecNode::close(state);
 }
 
@@ -576,6 +579,8 @@ Status HashJoinNode::get_next(RuntimeState* state, RowBatch* row_batch, bool* eo
 }
 
 Status HashJoinNode::get_next(RuntimeState* state, Block* output_block, bool* eos) {
+    RETURN_IF_LIMIT_EXCEEDED(state, "VHash join, while execute get_next.");
+
     SCOPED_TIMER(_runtime_profile->total_time_counter());
     SCOPED_TIMER(_probe_timer);
 
