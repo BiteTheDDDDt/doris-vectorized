@@ -25,6 +25,7 @@
 #include "vec/common/hash_table/hash_table.h"
 #include "vec/exec/join/join_op.h"
 #include "vec/exec/join/vacquire_list.hpp"
+#include "vec/exprs/vruntime_filter.h"
 #include "vec/functions/function.h"
 
 namespace doris {
@@ -197,7 +198,7 @@ private:
 
 private:
     Status _hash_table_build(RuntimeState* state);
-    Status _process_build_block(Block& block);
+    Status _process_build_block(RuntimeState* state, Block& block);
 
     Status extract_build_join_column(Block& block, NullMap& null_map, ColumnRawPtrs& raw_ptrs,
                                      bool& ignore_null, RuntimeProfile::Counter& expr_call_timer);
@@ -207,11 +208,23 @@ private:
 
     void _hash_table_init();
 
-    template <class HashTableContext, bool ignore_null, bool build_unique>
+    template <class HashTableContext, bool ignore_null, bool build_unique, bool has_runtime_filter>
     friend class ProcessHashTableBuild;
+
+    template <int start, int end>
+    friend void compile_time_call_build_process(int target_state, Status& st, NullMap& null_map_val,
+                                                int rows, Block& acquired_block,
+                                                ColumnRawPtrs& build_raw_ptrs,
+                                                HashJoinNode* join_node, int batch_size);
 
     template <class HashTableContext, bool ignore_null>
     friend class ProcessHashTableProbe;
+
+    template <class HashTableContext>
+    friend class ProcessRuntimeFilterBuild;
+
+    std::vector<TRuntimeFilterDesc> _runtime_filter_descs;
+    std::unordered_map<const Block*, std::vector<int>> _inserted_rows;
 };
 } // namespace vectorized
 } // namespace doris
