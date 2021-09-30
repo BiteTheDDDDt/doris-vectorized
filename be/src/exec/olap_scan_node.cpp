@@ -214,7 +214,7 @@ Status OlapScanNode::open(RuntimeState* state) {
 
     // acquire runtime filter
     _runtime_filter_ctxs.resize(_runtime_filter_descs.size());
-
+    LOG(INFO) << "MYTEST: _runtime_filter_descs " << _runtime_filter_descs.size();
     for (size_t i = 0; i < _runtime_filter_descs.size(); ++i) {
         auto& filter_desc = _runtime_filter_descs[i];
         IRuntimeFilter* runtime_filter = nullptr;
@@ -232,10 +232,12 @@ Status OlapScanNode::open(RuntimeState* state) {
             RETURN_IF_ERROR(runtime_filter->get_push_expr_ctxs(&expr_context));
             _runtime_filter_ctxs[i].apply_mark = true;
             _runtime_filter_ctxs[i].runtimefilter = runtime_filter;
+            LOG(INFO) << "MYTEST: expr_context " << expr_context.size();
 
             for (auto ctx : expr_context) {
                 ctx->prepare(state, row_desc(), _expr_mem_tracker);
                 ctx->open(state);
+                LOG(INFO) << "MYTEST: " << ctx->root()->debug_string();
                 int index = _conjunct_ctxs.size();
                 _conjunct_ctxs.push_back(ctx);
                 // it's safe to store address from a fix-resized vector
@@ -1421,12 +1423,14 @@ void OlapScanNode::transfer_thread(RuntimeState* state) {
         auto iter = olap_scanners.begin();
         if (thread_token != nullptr) {
             while (iter != olap_scanners.end()) {
-                auto s = thread_token->submit_func(std::bind(&OlapScanNode::scanner_thread, this, *iter));
+                auto s = thread_token->submit_func(
+                        std::bind(&OlapScanNode::scanner_thread, this, *iter));
                 if (s.ok()) {
                     (*iter)->start_wait_worker_timer();
                     olap_scanners.erase(iter++);
                 } else {
-                    LOG(FATAL) << "Failed to assign scanner task to thread pool! " << s.get_error_msg();
+                    LOG(FATAL) << "Failed to assign scanner task to thread pool! "
+                               << s.get_error_msg();
                 }
                 ++_total_assign_num;
             }

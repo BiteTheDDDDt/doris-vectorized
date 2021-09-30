@@ -20,6 +20,7 @@
 #include "gen_cpp/PlanNodes_types.h"
 #include "runtime/descriptors.h"
 #include "runtime/exec_env.h"
+#include "runtime/runtime_filter_mgr.h"
 #include "util/priority_thread_pool.hpp"
 #include "vec/core/block.h"
 #include "vec/exec/volap_scanner.h"
@@ -371,7 +372,8 @@ Status VOlapScanNode::start_scan_thread(RuntimeState* state) {
             // add scanner to pool before doing prepare.
             // so that scanner can be automatically deconstructed if prepare failed.
             _scanner_pool->add(scanner);
-            RETURN_IF_ERROR(scanner->prepare(*scan_range, scanner_ranges, _olap_filter, _bloom_filters_push_down));
+            RETURN_IF_ERROR(scanner->prepare(*scan_range, scanner_ranges, _olap_filter,
+                                             _bloom_filters_push_down));
 
             _volap_scanners.push_back(scanner);
             disk_set.insert(scanner->scan_disk());
@@ -431,6 +433,13 @@ Status VOlapScanNode::close(RuntimeState* state) {
     // so that initiative close the Scanner
     for (auto scanner : _volap_scanners) {
         scanner->close(state);
+    }
+
+    for (auto& filter_desc : _runtime_filter_descs) {
+        IRuntimeFilter* runtime_filter = nullptr;
+        state->runtime_filter_mgr()->get_consume_filter(filter_desc.filter_id, &runtime_filter);
+        DCHECK(runtime_filter != nullptr);
+        runtime_filter->consumer_close();
     }
 
     VLOG_CRITICAL << "VOlapScanNode::close()";

@@ -43,7 +43,7 @@ namespace doris {
 // only used in Runtime Filter
 class MinMaxFuncBase {
 public:
-    virtual void insert(void* data) = 0;
+    virtual void insert(const void* data) = 0;
     virtual bool find(void* data) = 0;
     virtual bool is_empty() = 0;
     virtual void* get_max() = 0;
@@ -61,9 +61,9 @@ class MinMaxNumFunc : public MinMaxFuncBase {
 public:
     MinMaxNumFunc() = default;
     ~MinMaxNumFunc() = default;
-    virtual void insert(void* data) {
+    virtual void insert(const void* data) {
         if (data == nullptr) return;
-        T val_data = *reinterpret_cast<T*>(data);
+        const T val_data = *reinterpret_cast<const T*>(data);
         if (_empty) {
             _min = val_data;
             _max = val_data;
@@ -478,7 +478,7 @@ public:
         return Status::OK();
     }
 
-    void insert(void* data) {
+    void insert(const void* data) {
         switch (_filter_type) {
         case RuntimeFilterType::IN_FILTER: {
             if (data != nullptr) {
@@ -747,12 +747,12 @@ Status IRuntimeFilter::create(RuntimeState* state, MemTracker* tracker, ObjectPo
     return (*res)->init_with_desc(desc, node_id);
 }
 
-void IRuntimeFilter::insert(void* data) {
+void IRuntimeFilter::insert(const void* data) {
     DCHECK(is_producer());
     _wrapper->insert(data);
 }
 
-Status IRuntimeFilter::publish(HashJoinNode* hash_join_node, ExprContext* probe_ctx) {
+Status IRuntimeFilter::publish() {
     DCHECK(is_producer());
     if (_has_local_target) {
         IRuntimeFilter* consumer_filter = nullptr;
@@ -1108,12 +1108,12 @@ void RuntimeFilterSlots::ready_for_publish() {
     }
 }
 
-void RuntimeFilterSlots::publish(HashJoinNode* hash_join_node) {
+void RuntimeFilterSlots::publish() {
     for (int i = 0; i < _probe_expr_context.size(); ++i) {
         auto iter = _runtime_filters.find(i);
         if (iter != _runtime_filters.end()) {
             for (auto filter : iter->second) {
-                filter->publish(hash_join_node, _probe_expr_context[i]);
+                filter->publish();
             }
         }
     }

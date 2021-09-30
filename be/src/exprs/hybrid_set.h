@@ -35,9 +35,9 @@ class HybridSetBase {
 public:
     HybridSetBase() = default;
     virtual ~HybridSetBase() = default;
-    virtual void insert(void* data) = 0;
+    virtual void insert(const void* data) = 0;
     // use in vectorize execute engine
-    virtual void insert(void* data, size_t) = 0;
+    virtual void insert(const void* data, size_t) = 0;
 
     virtual void insert(HybridSetBase* set) = 0;
 
@@ -66,18 +66,18 @@ public:
 
     ~HybridSet() override = default;
 
-    void insert(void* data) override {
+    void insert(const void* data) override {
         if (sizeof(T) >= 16) {
             // for largeint, it will core dump with no memcpy
             T value;
             memcpy(&value, data, sizeof(T));
             _set.insert(value);
         } else {
-            _set.insert(*reinterpret_cast<T*>(data));
+            _set.insert(*reinterpret_cast<const T*>(data));
         }
     }
 
-    void insert(void* data, size_t) override { insert(data); }
+    void insert(const void* data, size_t) override { insert(data); }
 
     void insert(HybridSetBase* set) override {
         HybridSet<T>* hybrid_set = reinterpret_cast<HybridSet<T>*>(set);
@@ -124,14 +124,14 @@ public:
 
     ~StringValueSet() override = default;
 
-    void insert(void* data) override {
-        auto* value = reinterpret_cast<StringValue*>(data);
+    void insert(const void* data) override {
+        const auto* value = reinterpret_cast<const StringValue*>(data);
         std::string str_value(value->ptr, value->len);
         _set.insert(str_value);
     }
 
-    void insert(void* data, size_t size) override {
-        std::string str_value(reinterpret_cast<char*>(data), size);
+    void insert(const void* data, size_t size) override {
+        std::string str_value(reinterpret_cast<const char*>(data), size);
         _set.insert(str_value);
     }
 

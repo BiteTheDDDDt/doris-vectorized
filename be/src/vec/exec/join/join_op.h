@@ -64,12 +64,36 @@ struct RowRefList : RowRef {
     public:
         ForwardIterator(const RowRefList* begin)
                 : root(begin), first(true), batch(root->next), position(0) {}
+        ForwardIterator() : root(nullptr), first(false), batch(nullptr), position(0) {}
 
         const RowRef* operator->() const {
             if (first) return root;
             return &batch->row_refs[position];
         }
 
+        RowRef operator*() {
+            if (first) return *root;
+            return batch->row_refs[position];
+        }
+
+        bool operator==(const ForwardIterator& rhs) const {
+            if (first) {
+                return rhs.first;
+            }
+            if (batch == nullptr) {
+                return rhs.batch == nullptr;
+            }
+            return batch == rhs.batch && position == rhs.position;
+        }
+        bool operator!=(const ForwardIterator& rhs) const {
+            if (first) {
+                return !rhs.first;
+            }
+            if (batch == nullptr) {
+                return rhs.batch != nullptr;
+            }
+            return batch != rhs.batch || position != rhs.position;
+        }
         void operator++() {
             if (first) {
                 first = false;
@@ -97,6 +121,7 @@ struct RowRefList : RowRef {
     RowRefList() {}
     RowRefList(const Block* block_, size_t row_num_) : RowRef(block_, row_num_) {}
 
+    ForwardIterator end() const { return ForwardIterator(); }
     ForwardIterator begin() const { return ForwardIterator(this); }
 
     /// insert element after current one

@@ -25,6 +25,7 @@
 #include "vec/common/hash_table/hash_table.h"
 #include "vec/exec/join/join_op.h"
 #include "vec/exec/join/vacquire_list.hpp"
+#include "vec/exprs/vruntime_filter.h"
 #include "vec/functions/function.h"
 
 namespace doris {
@@ -211,6 +212,11 @@ private:
 
     template <class HashTableContext, bool has_null_map>
     friend class ProcessHashTableProbe;
+
+    template <class HashTableContext>
+    friend class ProcessRuntimeFilterBuild;
+
+    std::vector<TRuntimeFilterDesc> _runtime_filter_descs;
 };
 } // namespace vectorized
 } // namespace doris
