@@ -19,7 +19,7 @@
 
 namespace doris {
 
-HybridSetBase* HybridSetBase::create_set(PrimitiveType type) {
+HybridSetBase* HybridSetBase::create_set(PrimitiveType type, bool vectorized_enable) {
     switch (type) {
     case TYPE_BOOLEAN:
         return new (std::nothrow) HybridSet<bool>();
@@ -55,6 +55,9 @@ HybridSetBase* HybridSetBase::create_set(PrimitiveType type) {
     case TYPE_CHAR:
     case TYPE_VARCHAR:
     case TYPE_STRING:
+        if (vectorized_enable) {
+            return new (std::nothrow) StringValueSet();
+        }
         return new (std::nothrow) StringValueSet();
 
     default:

@@ -194,9 +194,7 @@ public:
     //Calculate hash map size O(n)
     size_t get_size() {
         size_t count = 0;
-        for (auto& v : *this) {
-            count++;
-        }
+        std::for_each(std::begin(*this), std::end(*this), [&](auto) { count++; });
         return count;
     }
 

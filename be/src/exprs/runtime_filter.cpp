@@ -449,7 +449,8 @@ public:
             : _tracker(tracker),
               _pool(pool),
               _column_return_type(params->column_return_type),
-              _filter_type(params->filter_type) {}
+              _filter_type(params->filter_type),
+              _vectorized_enable(state->enable_vectorized_exec()) {}
     // for a 'tmp' runtime predicate wrapper
     // only could called assign method or as a param for merge
     RuntimePredicateWrapper(MemTracker* tracker, ObjectPool* pool, RuntimeFilterType type)
@@ -459,7 +460,7 @@ public:
     Status init(const RuntimeFilterParams* params) {
         switch (_filter_type) {
         case RuntimeFilterType::IN_FILTER: {
-            _hybrid_set.reset(HybridSetBase::create_set(_column_return_type));
+            _hybrid_set.reset(HybridSetBase::create_set(_column_return_type,_vectorized_enable));
             break;
         }
         case RuntimeFilterType::MINMAX_FILTER: {
@@ -737,6 +738,7 @@ private:
     std::unique_ptr<MinMaxFuncBase> _minmax_func;
     std::unique_ptr<HybridSetBase> _hybrid_set;
     std::unique_ptr<IBloomFilterFuncBase> _bloomfilter_func;
+    bool _vectorized_enable;
 };
 
 Status IRuntimeFilter::create(RuntimeState* state, MemTracker* tracker, ObjectPool* pool,
