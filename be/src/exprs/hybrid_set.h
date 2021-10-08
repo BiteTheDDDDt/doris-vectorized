@@ -38,7 +38,7 @@ public:
     virtual ~HybridSetBase() = default;
     virtual void insert(const void* data) = 0;
     // use in vectorize execute engine
-    virtual void insert(const void* data, size_t) = 0;
+    virtual void insert(const StringRef& value) = 0;
 
     virtual void insert(HybridSetBase* set) = 0;
 
@@ -47,7 +47,7 @@ public:
     // use in vectorize execute engine
     virtual bool find(void* data, size_t) = 0;
 
-    static HybridSetBase* create_set(PrimitiveType type);
+    static HybridSetBase* create_set(PrimitiveType type, bool vectorized_enable = false);
     class IteratorBase {
     public:
         IteratorBase() {}
@@ -68,6 +68,8 @@ public:
     ~HybridSet() override = default;
 
     void insert(const void* data) override {
+        if (data == nullptr) return;
+
         if (sizeof(T) >= 16) {
             // for largeint, it will core dump with no memcpy
             T value;
@@ -77,8 +79,7 @@ public:
             _set.insert(*reinterpret_cast<const T*>(data));
         }
     }
-
-    void insert(const void* data, size_t) override { insert(data); }
+    void insert(const StringRef& value) override { insert(value.data); }
 
     void insert(HybridSetBase* set) override {
         HybridSet<T>* hybrid_set = reinterpret_cast<HybridSet<T>*>(set);
@@ -126,15 +127,13 @@ public:
     ~StringValueSet() override = default;
 
     void insert(const void* data) override {
+        if (data == nullptr) return;
+
         const auto* value = reinterpret_cast<const StringValue*>(data);
         std::string str_value(value->ptr, value->len);
         _set.insert(str_value);
     }
-
-    void insert(const void* data, size_t size) override {
-        std::string str_value(reinterpret_cast<const char*>(data), size);
-        _set.insert(str_value);
-    }
+    void insert(const StringRef& value) override { DCHECK(false) << "Should not be called here"; }
 
     void insert(HybridSetBase* set) override {
         StringValueSet* string_set = reinterpret_cast<StringValueSet*>(set);
@@ -192,14 +191,9 @@ public:
 
     ~StringRefSet() override = default;
 
-    void insert(const void* data) override {
-        const auto* value = reinterpret_cast<const StringRef*>(data);
-        std::string str_value(value->data, value->size);
-        _set.insert(str_value);
-    }
-
-    void insert(const void* data, size_t size) override {
-        std::string str_value(reinterpret_cast<const char*>(data), size);
+    void insert(const void* data) override { DCHECK(false) << "Should not be called here"; }
+    void insert(const StringRef& value) override {
+        std::string str_value(value.data, value.size);
         _set.insert(str_value);
     }
 
@@ -232,7 +226,8 @@ public:
         ~Iterator() override = default;
         virtual bool has_next() const { return !(_begin == _end); }
         virtual const void* get_value() {
-            _value = new (const_cast<char*>(_begin))::StringRef;
+            _value.data = const_cast<char*>(_begin->data());
+            _value.size = _begin->length();
             return &_value;
         }
         virtual void next() { ++_begin; }

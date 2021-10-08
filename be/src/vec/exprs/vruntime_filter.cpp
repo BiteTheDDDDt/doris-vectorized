@@ -80,12 +80,14 @@ void VRuntimeFilterSlots::insert(RowRefList& rows) {
                 }
                 const auto& ref_data = column_nested.get_data_at(row.row_num);
                 for (auto filter : iter->second) {
-                    filter->insert(ref_data.data);
+                    LOG(INFO) << "MYTEST: insert filter";
+                    filter->insert(ref_data);
                 }
             } else {
                 const auto& ref_data = column->get_data_at(row.row_num);
                 for (auto filter : iter->second) {
-                    filter->insert(ref_data.data);
+                    LOG(INFO) << "MYTEST: insert filter";
+                    filter->insert(ref_data);
                 }
             }
         }

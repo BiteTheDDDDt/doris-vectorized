@@ -56,7 +56,7 @@ HybridSetBase* HybridSetBase::create_set(PrimitiveType type, bool vectorized_ena
     case TYPE_VARCHAR:
     case TYPE_STRING:
         if (vectorized_enable) {
-            return new (std::nothrow) StringValueSet();
+            return new (std::nothrow) StringRefSet();
         }
         return new (std::nothrow) StringValueSet();
 

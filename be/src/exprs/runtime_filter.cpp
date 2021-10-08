@@ -44,6 +44,7 @@ namespace doris {
 class MinMaxFuncBase {
 public:
     virtual void insert(const void* data) = 0;
+    //virtual void insert(const StringRef& value) = 0;
     virtual bool find(void* data) = 0;
     virtual bool is_empty() = 0;
     virtual void* get_max() = 0;
@@ -450,7 +451,7 @@ public:
               _pool(pool),
               _column_return_type(params->column_return_type),
               _filter_type(params->filter_type),
-              _vectorized_enable(state->enable_vectorized_exec()) {}
+              _vectorized_enable(state && state->enable_vectorized_exec()) {}
     // for a 'tmp' runtime predicate wrapper
     // only could called assign method or as a param for merge
     RuntimePredicateWrapper(MemTracker* tracker, ObjectPool* pool, RuntimeFilterType type)
@@ -460,7 +461,7 @@ public:
     Status init(const RuntimeFilterParams* params) {
         switch (_filter_type) {
         case RuntimeFilterType::IN_FILTER: {
-            _hybrid_set.reset(HybridSetBase::create_set(_column_return_type,_vectorized_enable));
+            _hybrid_set.reset(HybridSetBase::create_set(_column_return_type, _vectorized_enable));
             break;
         }
         case RuntimeFilterType::MINMAX_FILTER: {
@@ -479,21 +480,20 @@ public:
         return Status::OK();
     }
 
-    void insert(const void* data) {
+    template <typename T>
+    void insert(T data) {
         switch (_filter_type) {
         case RuntimeFilterType::IN_FILTER: {
-            if (data != nullptr) {
-                _hybrid_set->insert(data);
-            }
+            _hybrid_set->insert(data);
             break;
         }
         case RuntimeFilterType::MINMAX_FILTER: {
-            _minmax_func->insert(data);
+            //_minmax_func->insert(data);
             break;
         }
         case RuntimeFilterType::BLOOM_FILTER: {
             DCHECK(_bloomfilter_func != nullptr);
-            _bloomfilter_func->insert(data);
+            //_bloomfilter_func->insert(data);
             break;
         }
         default:
@@ -752,6 +752,11 @@ Status IRuntimeFilter::create(RuntimeState* state, MemTracker* tracker, ObjectPo
 void IRuntimeFilter::insert(const void* data) {
     DCHECK(is_producer());
     _wrapper->insert(data);
+}
+
+void IRuntimeFilter::insert(const StringRef& value) {
+    DCHECK(is_producer());
+    _wrapper->insert(value);
 }
 
 Status IRuntimeFilter::publish() {
