@@ -332,6 +332,8 @@ TTypeDesc create_type_desc(PrimitiveType type) {
     TScalarType scalarType;
     scalarType.__set_type(to_thrift(type));
     scalarType.__set_len(-1);
+    scalarType.__set_precision(-1);
+    scalarType.__set_scale(-1);
     node_type.back().__set_scalar_type(scalarType);
     type_desc.__set_types(node_type);
     return type_desc;
