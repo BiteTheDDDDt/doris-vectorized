@@ -59,7 +59,6 @@ Status VRuntimeFilterSlots::init(RuntimeState* state, int64_t hash_table_size) {
         has_in_filter[runtime_filter->expr_order()] =
                 (runtime_filter->type() == RuntimeFilterType::IN_FILTER);
         _runtime_filters[runtime_filter->expr_order()].push_back(runtime_filter);
-        LOG(INFO) << "MYTEST: PUSH";
     }
 
     return Status::OK();
@@ -80,13 +79,11 @@ void VRuntimeFilterSlots::insert(RowRefList& rows) {
                 }
                 const auto& ref_data = column_nested.get_data_at(row.row_num);
                 for (auto filter : iter->second) {
-                    LOG(INFO) << "MYTEST: insert filter";
                     filter->insert(ref_data);
                 }
             } else {
                 const auto& ref_data = column->get_data_at(row.row_num);
                 for (auto filter : iter->second) {
-                    LOG(INFO) << "MYTEST: insert filter";
                     filter->insert(ref_data);
                 }
             }

@@ -183,7 +183,7 @@ cd ${DORIS_HOME}
 
 # Clean and build Backend
 if [ ${BUILD_BE} -eq 1 ] ; then
-    CMAKE_BUILD_TYPE=${BUILD_TYPE:-Debug}
+    CMAKE_BUILD_TYPE=${BUILD_TYPE:-Release}
     echo "Build Backend: ${CMAKE_BUILD_TYPE}"
     CMAKE_BUILD_DIR=${DORIS_HOME}/be/build_${CMAKE_BUILD_TYPE}
     if [ ${CLEAN} -eq 1 ]; then

@@ -44,7 +44,7 @@ namespace doris {
 class MinMaxFuncBase {
 public:
     virtual void insert(const void* data) = 0;
-    //virtual void insert(const StringRef& value) = 0;
+    virtual void insert(const StringRef& value) = 0;
     virtual bool find(void* data) = 0;
     virtual bool is_empty() = 0;
     virtual void* get_max() = 0;
@@ -54,7 +54,7 @@ public:
     // merge from other minmax_func
     virtual Status merge(MinMaxFuncBase* minmax_func, ObjectPool* pool) = 0;
     // create min-max filter function
-    static MinMaxFuncBase* create_minmax_filter(PrimitiveType type);
+    static MinMaxFuncBase* create_minmax_filter(PrimitiveType type, bool vectorized_enable = false);
 };
 
 template <class T>
@@ -75,6 +75,14 @@ public:
             _min = val_data;
         } else if (val_data > _max) {
             _max = val_data;
+        }
+    }
+    virtual void insert(const StringRef& value) {
+        if constexpr (std::is_same_v<T, StringValue>) {
+            StringValue data = StringValue(const_cast<char*>(value.data), value.size);
+            insert(reinterpret_cast<void*>(&data));
+        } else {
+            insert(value.data);
         }
     }
 
@@ -102,7 +110,6 @@ public:
                 _max.ptr = str->data();
                 _max.len = str->length();
             }
-
         } else {
             MinMaxNumFunc<T>* other_minmax = static_cast<MinMaxNumFunc<T>*>(minmax_func);
             if (other_minmax->_min < _min) {
@@ -135,7 +142,7 @@ private:
     bool _empty = true;
 };
 
-MinMaxFuncBase* MinMaxFuncBase::create_minmax_filter(PrimitiveType type) {
+MinMaxFuncBase* MinMaxFuncBase::create_minmax_filter(PrimitiveType type, bool vectorized_enable) {
     switch (type) {
     case TYPE_BOOLEAN:
         return new (std::nothrow) MinMaxNumFunc<bool>();
@@ -152,30 +159,39 @@ MinMaxFuncBase* MinMaxFuncBase::create_minmax_filter(PrimitiveType type) {
     case TYPE_BIGINT:
         return new (std::nothrow) MinMaxNumFunc<int64_t>();
 
+    case TYPE_LARGEINT:
+        return new (std::nothrow) MinMaxNumFunc<__int128>();
+
     case TYPE_FLOAT:
         return new (std::nothrow) MinMaxNumFunc<float>();
 
+    case TYPE_TIME:
     case TYPE_DOUBLE:
         return new (std::nothrow) MinMaxNumFunc<double>();
-
-    case TYPE_DATE:
-    case TYPE_DATETIME:
-        return new (std::nothrow) MinMaxNumFunc<DateTimeValue>();
 
     case TYPE_DECIMALV2:
         return new (std::nothrow) MinMaxNumFunc<DecimalV2Value>();
 
-    case TYPE_LARGEINT:
-        return new (std::nothrow) MinMaxNumFunc<__int128>();
+    case TYPE_DATE:
+    case TYPE_DATETIME:
+        if (vectorized_enable) {
+            return new (std::nothrow) MinMaxNumFunc<vectorized::DateTime>();
+        } else {
+            return new (std::nothrow) MinMaxNumFunc<DateTimeValue>();
+        }
 
     case TYPE_CHAR:
     case TYPE_VARCHAR:
+    case TYPE_HLL:
+    case TYPE_OBJECT:
     case TYPE_STRING:
         return new (std::nothrow) MinMaxNumFunc<StringValue>();
+
     default:
         DCHECK(false) << "Invalid type.";
     }
-    return NULL;
+
+    return nullptr;
 }
 
 // PrimitiveType->TExprNodeType
@@ -467,16 +483,16 @@ public:
             break;
         }
         case RuntimeFilterType::MINMAX_FILTER: {
-            _minmax_func.reset(MinMaxFuncBase::create_minmax_filter(_column_return_type));
+            _minmax_func.reset(
+                    MinMaxFuncBase::create_minmax_filter(_column_return_type, _vectorized_enable));
             break;
         }
         case RuntimeFilterType::BLOOM_FILTER: {
-            _bloomfilter_func.reset(
-                    IBloomFilterFuncBase::create_bloom_filter(_tracker, _column_return_type));
+            _bloomfilter_func.reset(IBloomFilterFuncBase::create_bloom_filter(
+                    _tracker, _column_return_type, _vectorized_enable));
             return _bloomfilter_func->init_with_fixed_length(params->bloom_filter_size);
         }
         default:
-            DCHECK(false);
             return Status::InvalidArgument("Unknown Filter type");
         }
         return Status::OK();
@@ -490,12 +506,11 @@ public:
             break;
         }
         case RuntimeFilterType::MINMAX_FILTER: {
-            //_minmax_func->insert(data);
+            _minmax_func->insert(data);
             break;
         }
         case RuntimeFilterType::BLOOM_FILTER: {
-            DCHECK(_bloomfilter_func != nullptr);
-            //_bloomfilter_func->insert(data);
+            _bloomfilter_func->insert(data);
             break;
         }
         default:
