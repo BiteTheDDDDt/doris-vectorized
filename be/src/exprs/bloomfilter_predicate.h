@@ -86,7 +86,6 @@ public:
 
     virtual void insert(const StringRef& value) = 0;
     virtual bool find(const StringRef& value) const = 0;
-    virtual bool find_olap_engine(const StringRef& value) const = 0;
 
     virtual Status merge(IBloomFilterFuncBase* bloomfilter_func) = 0;
     virtual Status assign(const char* data, int len) = 0;
@@ -185,6 +184,13 @@ struct CommonFindOp {
                                         const void* data) const {
         return this->find(bloom_filter, data);
     }
+
+    ALWAYS_INLINE void insert(BloomFilterAdaptor& bloom_filter, const StringRef& value) const {
+        bloom_filter.add_bytes(value.data, sizeof(T));
+    }
+    ALWAYS_INLINE bool find(const BloomFilterAdaptor& bloom_filter, const StringRef& value) const {
+        return bloom_filter.test_bytes(value.data, value.size);
+    }
 };
 
 template <class BloomFilterAdaptor>
@@ -205,6 +211,18 @@ struct StringFindOp {
     ALWAYS_INLINE bool find_olap_engine(const BloomFilterAdaptor& bloom_filter,
                                         const void* data) const {
         return StringFindOp::find(bloom_filter, data);
+    }
+
+    ALWAYS_INLINE void insert(BloomFilterAdaptor& bloom_filter, const StringRef& value) const {
+        if (value.size) {
+            bloom_filter.add_bytes(value.data, value.size);
+        }
+    }
+    ALWAYS_INLINE bool find(const BloomFilterAdaptor& bloom_filter, const StringRef& value) const {
+        if (!value.size) {
+            return false;
+        }
+        return bloom_filter.test_bytes(value.data, value.size);
     }
 };
 
@@ -230,9 +248,20 @@ struct DateTimeFindOp : public CommonFindOp<DateTimeValue, BloomFilterAdaptor> {
     }
 };
 
+template <class BloomFilterAdaptor>
+struct VDateTimeFindOp : public CommonFindOp<vectorized::DateTime, BloomFilterAdaptor> {
+    bool find_olap_engine(const BloomFilterAdaptor& bloom_filter, const void* data) const {
+        DateTimeValue value;
+        value.from_olap_datetime(*reinterpret_cast<const uint64_t*>(data));
+
+        vectorized::DateTime date_time = binary_cast<DateTimeValue, vectorized::Int128>(value);
+
+        return bloom_filter.test_bytes((char*)&date_time, sizeof(date_time));
+    }
+};
+
 // avoid violating C/C++ aliasing rules.
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=101684
-
 template <class BloomFilterAdaptor>
 struct DateFindOp : public CommonFindOp<DateTimeValue, BloomFilterAdaptor> {
     bool find_olap_engine(const BloomFilterAdaptor& bloom_filter, const void* data) const {
@@ -246,6 +275,24 @@ struct DateFindOp : public CommonFindOp<DateTimeValue, BloomFilterAdaptor> {
         char data_bytes[sizeof(date_value)];
         memcpy(&data_bytes, &date_value, sizeof(date_value));
         return bloom_filter.test_bytes(data_bytes, sizeof(DateTimeValue));
+    }
+};
+
+template <class BloomFilterAdaptor>
+struct VDateFindOp : public CommonFindOp<vectorized::DateTime, BloomFilterAdaptor> {
+    bool find_olap_engine(const BloomFilterAdaptor& bloom_filter, const void* data) const {
+        uint24_t date = *static_cast<const uint24_t*>(data);
+        uint64_t value = uint32_t(date);
+
+        DateTimeValue date_value;
+        date_value.from_olap_date(value);
+        date_value.to_datetime();
+
+        vectorized::DateTime date_time = binary_cast<DateTimeValue, vectorized::Int128>(date_value);
+
+        char data_bytes[sizeof(date_time)];
+        memcpy(&data_bytes, &date_time, sizeof(date_time));
+        return bloom_filter.test_bytes(data_bytes, sizeof(date_time));
     }
 };
 
@@ -265,43 +312,53 @@ struct DecimalV2FindOp : public CommonFindOp<DecimalV2Value, BloomFilterAdaptor>
     }
 };
 
-template <PrimitiveType type, class BloomFilterAdaptor>
+template <PrimitiveType type, class BloomFilterAdaptor, bool vectorized_enable>
 struct BloomFilterTypeTraits {
     using T = typename PrimitiveTypeTraits<type>::CppType;
     using FindOp = CommonFindOp<T, BloomFilterAdaptor>;
 };
 
 template <class BloomFilterAdaptor>
-struct BloomFilterTypeTraits<TYPE_DATE, BloomFilterAdaptor> {
+struct BloomFilterTypeTraits<TYPE_DATE, BloomFilterAdaptor, false> {
     using FindOp = DateFindOp<BloomFilterAdaptor>;
 };
 
 template <class BloomFilterAdaptor>
-struct BloomFilterTypeTraits<TYPE_DATETIME, BloomFilterAdaptor> {
+struct BloomFilterTypeTraits<TYPE_DATE, BloomFilterAdaptor, true> {
+    using FindOp = VDateFindOp<BloomFilterAdaptor>;
+};
+
+template <class BloomFilterAdaptor>
+struct BloomFilterTypeTraits<TYPE_DATETIME, BloomFilterAdaptor, false> {
     using FindOp = DateTimeFindOp<BloomFilterAdaptor>;
 };
 
 template <class BloomFilterAdaptor>
-struct BloomFilterTypeTraits<TYPE_DECIMALV2, BloomFilterAdaptor> {
+struct BloomFilterTypeTraits<TYPE_DATETIME, BloomFilterAdaptor, true> {
+    using FindOp = VDateTimeFindOp<BloomFilterAdaptor>;
+};
+
+template <class BloomFilterAdaptor, bool vectorized_enable>
+struct BloomFilterTypeTraits<TYPE_DECIMALV2, BloomFilterAdaptor, vectorized_enable> {
     using FindOp = DecimalV2FindOp<BloomFilterAdaptor>;
 };
 
-template <class BloomFilterAdaptor>
-struct BloomFilterTypeTraits<TYPE_CHAR, BloomFilterAdaptor> {
+template <class BloomFilterAdaptor, bool vectorized_enable>
+struct BloomFilterTypeTraits<TYPE_CHAR, BloomFilterAdaptor, vectorized_enable> {
     using FindOp = FixedStringFindOp<BloomFilterAdaptor>;
 };
 
-template <class BloomFilterAdaptor>
-struct BloomFilterTypeTraits<TYPE_VARCHAR, BloomFilterAdaptor> {
+template <class BloomFilterAdaptor, bool vectorized_enable>
+struct BloomFilterTypeTraits<TYPE_VARCHAR, BloomFilterAdaptor, vectorized_enable> {
     using FindOp = StringFindOp<BloomFilterAdaptor>;
 };
 
-template <class BloomFilterAdaptor>
-struct BloomFilterTypeTraits<TYPE_STRING, BloomFilterAdaptor> {
+template <class BloomFilterAdaptor, bool vectorized_enable>
+struct BloomFilterTypeTraits<TYPE_STRING, BloomFilterAdaptor, vectorized_enable> {
     using FindOp = StringFindOp<BloomFilterAdaptor>;
 };
 
-template <PrimitiveType type, class BloomFilterAdaptor>
+template <PrimitiveType type, class BloomFilterAdaptor, bool vectorized_enable>
 class BloomFilterFunc final : public BloomFilterFuncBase<BloomFilterAdaptor> {
 public:
     BloomFilterFunc(MemTracker* tracker) : BloomFilterFuncBase<BloomFilterAdaptor>(tracker) {}
@@ -322,65 +379,12 @@ public:
         return dummy.find_olap_engine(*this->_bloom_filter, data);
     }
 
-    void insert(const StringRef& value) { DCHECK(false) << "Invalid call."; }
-
-    bool find(const StringRef& value) const {
-        DCHECK(false) << "Invalid call.";
-        return true;
-    }
-
-    bool find_olap_engine(const StringRef& value) const {
-        DCHECK(false) << "Invalid call.";
-        return true;
-    }
-
-private:
-    typename BloomFilterTypeTraits<type, BloomFilterAdaptor>::FindOp dummy;
-};
-
-template <class BloomFilterAdaptor>
-struct StringRefFindOp {
-    ALWAYS_INLINE void insert(BloomFilterAdaptor& bloom_filter, const StringRef& value) const {
-        bloom_filter.add_bytes(value.data, value.size);
-    }
-    ALWAYS_INLINE bool find(const BloomFilterAdaptor& bloom_filter, const StringRef& value) const {
-        return bloom_filter.test_bytes(value.data, value.size);
-    }
-    ALWAYS_INLINE bool find_olap_engine(const BloomFilterAdaptor& bloom_filter,
-                                        const StringRef& value) const {
-        return find(bloom_filter, value);
-    }
-};
-
-template <class BloomFilterAdaptor>
-class VBloomFilterFunc final : public BloomFilterFuncBase<BloomFilterAdaptor> {
-public:
-    VBloomFilterFunc(MemTracker* tracker) : BloomFilterFuncBase<BloomFilterAdaptor>(tracker) {}
-
-    ~VBloomFilterFunc() = default;
-
-    void insert(const void* data) { DCHECK(false) << "Invalid call."; }
-
-    bool find(const void* data) const override {
-        DCHECK(false) << "Invalid call.";
-        return true;
-    }
-
-    bool find_olap_engine(const void* data) const override {
-        DCHECK(false) << "Invalid call.";
-        return true;
-    }
-
     void insert(const StringRef& value) { dummy.insert(*this->_bloom_filter, value); }
 
     bool find(const StringRef& value) const { return dummy.find(*this->_bloom_filter, value); }
 
-    bool find_olap_engine(const StringRef& value) const {
-        return dummy.find_olap_engine(*this->_bloom_filter, value);
-    }
-
 private:
-    StringRefFindOp<BloomFilterAdaptor> dummy;
+    typename BloomFilterTypeTraits<type, BloomFilterAdaptor, vectorized_enable>::FindOp dummy;
 };
 
 // BloomFilterPredicate only used in runtime filter
@@ -420,5 +424,62 @@ private:
     // if filter rate less than this, bloom filter will set always true
     constexpr static double _expect_filter_rate = 0.2;
 };
+
+template <bool vectorized_enable>
+IBloomFilterFuncBase* create_bloom_filter_raw(MemTracker* tracker, PrimitiveType type) {
+    switch (type) {
+    case TYPE_BOOLEAN:
+        return new BloomFilterFunc<TYPE_BOOLEAN, CurrentBloomFilterAdaptor, vectorized_enable>(
+                tracker);
+    case TYPE_TINYINT:
+        return new BloomFilterFunc<TYPE_TINYINT, CurrentBloomFilterAdaptor, vectorized_enable>(
+                tracker);
+    case TYPE_SMALLINT:
+        return new BloomFilterFunc<TYPE_SMALLINT, CurrentBloomFilterAdaptor, vectorized_enable>(
+                tracker);
+    case TYPE_INT:
+        return new BloomFilterFunc<TYPE_INT, CurrentBloomFilterAdaptor, vectorized_enable>(tracker);
+    case TYPE_BIGINT:
+        return new BloomFilterFunc<TYPE_BIGINT, CurrentBloomFilterAdaptor, vectorized_enable>(
+                tracker);
+    case TYPE_LARGEINT:
+        return new BloomFilterFunc<TYPE_LARGEINT, CurrentBloomFilterAdaptor, vectorized_enable>(
+                tracker);
+
+    case TYPE_FLOAT:
+        return new BloomFilterFunc<TYPE_FLOAT, CurrentBloomFilterAdaptor, vectorized_enable>(
+                tracker);
+    case TYPE_DOUBLE:
+        return new BloomFilterFunc<TYPE_DOUBLE, CurrentBloomFilterAdaptor, vectorized_enable>(
+                tracker);
+
+    case TYPE_DECIMALV2:
+        return new BloomFilterFunc<TYPE_DECIMALV2, CurrentBloomFilterAdaptor, vectorized_enable>(
+                tracker);
+
+    case TYPE_DATE:
+        return new BloomFilterFunc<TYPE_DATE, CurrentBloomFilterAdaptor, vectorized_enable>(
+                tracker);
+    case TYPE_DATETIME:
+        return new BloomFilterFunc<TYPE_DATETIME, CurrentBloomFilterAdaptor, vectorized_enable>(
+                tracker);
+
+    case TYPE_CHAR:
+        return new BloomFilterFunc<TYPE_CHAR, CurrentBloomFilterAdaptor, vectorized_enable>(
+                tracker);
+    case TYPE_VARCHAR:
+        return new BloomFilterFunc<TYPE_VARCHAR, CurrentBloomFilterAdaptor, vectorized_enable>(
+                tracker);
+    case TYPE_STRING:
+        return new BloomFilterFunc<TYPE_STRING, CurrentBloomFilterAdaptor, vectorized_enable>(
+                tracker);
+
+    default:
+        DCHECK(false) << "Invalid type.";
+    }
+
+    return nullptr;
+}
+
 } // namespace doris
 #endif

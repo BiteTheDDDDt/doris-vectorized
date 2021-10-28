@@ -889,22 +889,25 @@ Status HashJoinNode::extract_probe_join_column(Block& block, NullMap& null_map,
     return Status::OK();
 }
 
-template <int start, int end>
-void compile_time_call_build_process(int target_state, Status& st, NullMap& null_map_val, int rows,
+template <int state = 7>
+void compile_time_call_build_process(bool has_null, bool build_unique, bool has_runtime_filter,
+                                     Status& st, NullMap& null_map_val, int rows,
                                      Block& acquired_block, ColumnRawPtrs& build_raw_ptrs,
                                      HashJoinNode* join_node, int batch_size) {
-    if constexpr (start < end) {
-        if (start == target_state) {
-            constexpr bool has_null = !!(1 & start);
-            constexpr bool build_unique = !!(2 & start);
-            constexpr bool has_runtime_filter = !!(4 & start);
+    if constexpr (state >= 0) {
+        // cast 'bool' to 'constexpr bool'
+        // there use constexpr state to match has_null/build_unique/has_runtime_filter
+        if (state == has_null * 1 + build_unique * 2 + has_runtime_filter * 4) {
+            constexpr bool c_has_null = !!(1 & state);
+            constexpr bool c_build_unique = !!(2 & state);
+            constexpr bool c_has_runtime_filter = !!(4 & state);
 
             std::visit(
                     [&](auto&& arg) {
                         using HashTableCtxType = std::decay_t<decltype(arg)>;
                         if constexpr (!std::is_same_v<HashTableCtxType, std::monostate>) {
-                            ProcessHashTableBuild<HashTableCtxType, has_null, build_unique,
-                                                  has_runtime_filter>
+                            ProcessHashTableBuild<HashTableCtxType, c_has_null, c_build_unique,
+                                                  c_has_runtime_filter>
                                     hash_table_build_process(rows, acquired_block, build_raw_ptrs,
                                                              join_node, batch_size);
                             st = hash_table_build_process(arg, &null_map_val);
@@ -913,12 +916,12 @@ void compile_time_call_build_process(int target_state, Status& st, NullMap& null
                             LOG(FATAL) << "FATAL: uninited hash table";
                         }
                     },
-                    join_node->_hash_table_variants);
+                    join_node->get_hash_table_variants());
         }
 
-        compile_time_call_build_process<start + 1, end>(target_state, st, null_map_val, rows,
-                                                        acquired_block, build_raw_ptrs, join_node,
-                                                        batch_size);
+        compile_time_call_build_process<state - 1>(has_null, build_unique, has_runtime_filter, st,
+                                                   null_map_val, rows, acquired_block,
+                                                   build_raw_ptrs, join_node, batch_size);
     }
 }
 
@@ -954,10 +957,9 @@ Status HashJoinNode::_process_build_block(RuntimeState* state, Block& block) {
             _hash_table_variants);
 
     bool has_runtime_filter = !_runtime_filter_descs.empty();
-    int target_state = has_null * 1 + _build_unique * 2 + has_runtime_filter * 4;
 
-    compile_time_call_build_process<0, 8>(target_state, st, null_map_val, rows, acquired_block,
-                                          raw_ptrs, this, state->batch_size());
+    compile_time_call_build_process(has_null, _build_unique, has_runtime_filter, st, null_map_val,
+                                    rows, acquired_block, raw_ptrs, this, state->batch_size());
 
     return st;
 }

@@ -128,6 +128,7 @@ public:
     virtual Status get_next(RuntimeState* state, RowBatch* row_batch, bool* eos);
     virtual Status get_next(RuntimeState* state, Block* block, bool* eos);
     virtual Status close(RuntimeState* state);
+    HashTableVariants& get_hash_table_variants() { return _hash_table_variants; }
 
 private:
     using VExprContexts = std::vector<VExprContext*>;
@@ -210,12 +211,6 @@ private:
 
     template <class HashTableContext, bool ignore_null, bool build_unique, bool has_runtime_filter>
     friend class ProcessHashTableBuild;
-
-    template <int start, int end>
-    friend void compile_time_call_build_process(int target_state, Status& st, NullMap& null_map_val,
-                                                int rows, Block& acquired_block,
-                                                ColumnRawPtrs& build_raw_ptrs,
-                                                HashJoinNode* join_node, int batch_size);
 
     template <class HashTableContext, bool ignore_null>
     friend class ProcessHashTableProbe;

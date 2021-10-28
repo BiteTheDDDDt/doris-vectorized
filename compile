@@ -1,0 +1,393 @@
+Apache Maven 3.5.4 (1edded0938998edf8bf061f1ceb3cfdeccf443fe; 2018-06-18T02:33:14+08:00)
+Maven home: /home/disk2/pxl/dev/baidu/bdg/doris/thirdparty-gcc10/installed/apache-maven-3.5.4
+Java version: 1.8.0_131, vendor: Oracle Corporation, runtime: /home/disk2/pxl/dev/baidu/bdg/doris/thirdparty-gcc10/installed/jdk1.8.0_131/jre
+Default locale: en_US, platform encoding: ANSI_X3.4-1968
+OS name: "linux", version: "4.14.0_1-0-0-42", arch: "amd64", family: "unix"
+cmake version 3.21.1
+
+CMake suite maintained and supported by Kitware (kitware.com/cmake).
+1.10.2
+Get params:
+    BUILD_BE            -- 1
+    BUILD_FE            -- 0
+    BUILD_UI            -- 0
+    BUILD_SPARK_DPP     -- 0
+    PARALLEL            -- 97
+    CLEAN               -- 0
+    WITH_MYSQL          -- ON
+    WITH_LZO            -- ON
+    GLIBC_COMPATIBILITY -- ON
+    USE_AVX2            -- ON
+
+Build generated code
+/usr/bin/make64 MAC=64
+/usr/bin/make64 -C script
+make64[1]: Entering directory `/home/disk2/pxl/dev/baidu/bdg/doris/core/gensrc/script'
+/home/disk2/pxl/dev/baidu/bdg/doris/core/gensrc/script/gen_build_version.sh
+make64[1]: Leaving directory `/home/disk2/pxl/dev/baidu/bdg/doris/core/gensrc/script'
+/usr/bin/make64 -C proto
+make64[1]: Entering directory `/home/disk2/pxl/dev/baidu/bdg/doris/core/gensrc/proto'
+make64[1]: Nothing to be done for `all'.
+make64[1]: Leaving directory `/home/disk2/pxl/dev/baidu/bdg/doris/core/gensrc/proto'
+/usr/bin/make64 -C thrift
+make64[1]: Entering directory `/home/disk2/pxl/dev/baidu/bdg/doris/core/gensrc/thrift'
+make64[1]: Nothing to be done for `all'.
+make64[1]: Leaving directory `/home/disk2/pxl/dev/baidu/bdg/doris/core/gensrc/thrift'
+Build Backend: RELEASE
+-- GLIBC_COMPATIBILITY is ON
+-- Build type is RELEASE
+-- Build target arch is x86_64
+-- make test: OFF
+-- GCC version is greater than 7.3.0, disable -Werror. Be careful with compile warnings.
+-- defined PIC_LIB_PATH
+-- build gensrc if necessary
+/usr/bin/make64 MAC=64 -C /home/disk2/pxl/dev/baidu/bdg/doris/core/be/../gensrc/
+make64: Entering directory `/home/disk2/pxl/dev/baidu/bdg/doris/core/gensrc'
+/usr/bin/make64 -C script
+make64[1]: Entering directory `/home/disk2/pxl/dev/baidu/bdg/doris/core/gensrc/script'
+/home/disk2/pxl/dev/baidu/bdg/doris/core/gensrc/script/gen_build_version.sh
+make64[1]: Leaving directory `/home/disk2/pxl/dev/baidu/bdg/doris/core/gensrc/script'
+/usr/bin/make64 -C proto
+make64[1]: Entering directory `/home/disk2/pxl/dev/baidu/bdg/doris/core/gensrc/proto'
+make64[1]: Nothing to be done for `all'.
+make64[1]: Leaving directory `/home/disk2/pxl/dev/baidu/bdg/doris/core/gensrc/proto'
+/usr/bin/make64 -C thrift
+make64[1]: Entering directory `/home/disk2/pxl/dev/baidu/bdg/doris/core/gensrc/thrift'
+make64[1]: Nothing to be done for `all'.
+make64[1]: Leaving directory `/home/disk2/pxl/dev/baidu/bdg/doris/core/gensrc/thrift'
+make64: Leaving directory `/home/disk2/pxl/dev/baidu/bdg/doris/core/gensrc'
+-- Compiler Flags:  -Wall -Wno-sign-compare -Wno-unknown-pragmas -pthread -Werror=strict-aliasing -fstrict-aliasing -fno-omit-frame-pointer -Werror=return-type -std=gnu++17 -D__STDC_FORMAT_MACROS -Wno-deprecated -Wno-vla -DBOOST_DATE_TIME_POSIX_TIME_STD_CONFIG -DBOOST_SYSTEM_NO_DEPRECATED -DBRPC_ENABLE_CPU_PROFILER -DBOOST_UUID_RANDOM_PROVIDER_FORCE_POSIX=1 -msse4.2 -mavx2  -Wno-attributes -DS2_USE_GFLAGS -DS2_USE_GLOG -DDORIS_WITH_MYSQL -DDORIS_WITH_LZO -faligned-new  -g -Wno-unused-local-typedefs -O3 -gdwarf-2 -DNDEBUG
+-- DORIS_DEPENDENCIES is -Wl,--start-group;rocksdb;librdkafka_cpp;librdkafka;libs2;snappy;Boost::regex;Boost::system;Boost::filesystem;Boost::thread;Boost::date_time;Boost::program_options;thrift;thriftnb;glog;re2;pprof;lz4;libevent;libevent_pthreads;curl;/home/disk2/pxl/dev/baidu/bdg/doris/thirdparty-gcc10/installed//lib/libz.a;/home/disk2/pxl/dev/baidu/bdg/doris/thirdparty-gcc10/installed//lib/libbz2.a;gflags;brpc;protobuf;benchmark;openssl;crypto;leveldb;bitshuffle;roaring;fmt;double-conversion;jemalloc;brotlicommon;brotlidec;brotlienc;zstd;arrow;parquet;orc;odbc;cctz;minzip;aws-sdk-s3;aws-sdk-core;aws-checksums;aws-c-io;aws-c-event-stream;aws-c-common;aws-c-cal;aws-s2n;hdfs3;gsasl;xml2;lzma;-Wl,--end-group;lzo;mysql
+-- Some symbols from glibc will be replaced for compatibility
+-- dir='/home/disk2/pxl/dev/baidu/bdg/doris/core/be/src'
+-- dir='/home/disk2/pxl/dev/baidu/bdg/doris/core/be/test'
+-- dir='/home/disk2/pxl/dev/baidu/bdg/doris/core/be/../gensrc/build'
+-- dir='/home/disk2/pxl/dev/baidu/bdg/doris/thirdparty-gcc10/installed/include'
+-- dir='/home/disk2/pxl/dev/baidu/bdg/doris/thirdparty-gcc10/installed/gperftools/include'
+-- dir='/home/disk2/pxl/dev/baidu/bdg/doris/thirdparty-gcc10/installed/include/thrift'
+-- dir='/home/disk2/pxl/dev/baidu/bdg/doris/thirdparty-gcc10/installed/include/event'
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/disk2/pxl/dev/baidu/bdg/doris/core/be/build_RELEASE
+[0/2] Re-checking globbed directories...
+[1/23] Building CXX object src/exprs/CMakeFiles/Exprs.dir/bloomfilter_predicate.cpp.o
+[2/23] Building CXX object src/olap/CMakeFiles/Olap.dir/bloom_filter_predicate.cpp.o
+[3/23] Building CXX object src/olap/CMakeFiles/Olap.dir/merger.cpp.o
+[4/23] Building CXX object src/olap/CMakeFiles/Olap.dir/collect_iterator.cpp.o
+[5/23] Building CXX object src/olap/CMakeFiles/Olap.dir/task/engine_checksum_task.cpp.o
+[6/23] Building CXX object src/exprs/CMakeFiles/Exprs.dir/runtime_filter.cpp.o
+[7/23] Building CXX object src/olap/CMakeFiles/Olap.dir/txn_manager.cpp.o
+[8/23] Linking CXX static library src/exprs/libExprs.a
+[9/23] Building CXX object src/vec/CMakeFiles/Vec.dir/exec/volap_scanner.cpp.o
+[10/23] Building CXX object src/olap/CMakeFiles/Olap.dir/delete_handler.cpp.o
+[11/23] Building CXX object src/vec/CMakeFiles/Vec.dir/exec/volap_scan_node.cpp.o
+[12/23] Building CXX object src/exec/CMakeFiles/Exec.dir/olap_scanner.cpp.o
+[13/23] Building CXX object src/exec/CMakeFiles/Exec.dir/exec_node.cpp.o
+[14/23] Building CXX object src/olap/CMakeFiles/Olap.dir/tablet.cpp.o
+[15/23] Building CXX object src/olap/CMakeFiles/Olap.dir/tablet_manager.cpp.o
+[16/23] Building CXX object src/olap/CMakeFiles/Olap.dir/reader.cpp.o
+[17/23] Building CXX object src/olap/CMakeFiles/Olap.dir/storage_engine.cpp.o
+[18/23] Linking CXX static library src/olap/libOlap.a
+[19/23] Linking CXX static library src/vec/libVec.a
+[20/23] Building CXX object src/exec/CMakeFiles/Exec.dir/olap_scan_node.cpp.o
+[21/23] Linking CXX static library src/exec/libExec.a
+[22/23] Linking CXX executable src/tools/meta_tool
+[23/23] Linking CXX executable src/service/palo_be
+[0/2] Re-checking globbed directories...
+[0/1] Install the project...
+-- Install configuration: "RELEASE"
+-- Up-to-date: /home/disk2/pxl/dev/baidu/bdg/doris/core/be/output/lib/
+-- Installing: /home/disk2/pxl/dev/baidu/bdg/doris/core/be/output/lib/palo_be
+-- Up-to-date: /home/disk2/pxl/dev/baidu/bdg/doris/core/be/output/udf/libDorisUdf.a
+-- Up-to-date: /home/disk2/pxl/dev/baidu/bdg/doris/core/be/output/udf/include/udf.h
+-- Up-to-date: /home/disk2/pxl/dev/baidu/bdg/doris/core/be/output/udf/include/uda_test_harness.h
+-- Up-to-date: /home/disk2/pxl/dev/baidu/bdg/doris/core/be/output/lib/
+-- Installing: /home/disk2/pxl/dev/baidu/bdg/doris/core/be/output/lib/meta_tool
+-- Up-to-date: /home/disk2/pxl/dev/baidu/bdg/doris/core/be/output
+-- Up-to-date: /home/disk2/pxl/dev/baidu/bdg/doris/core/be/output/bin
+-- Up-to-date: /home/disk2/pxl/dev/baidu/bdg/doris/core/be/output/conf
+-- Up-to-date: /home/disk2/pxl/dev/baidu/bdg/doris/core/be/output/bin/start_be.sh
+-- Up-to-date: /home/disk2/pxl/dev/baidu/bdg/doris/core/be/output/bin/stop_be.sh
+-- Up-to-date: /home/disk2/pxl/dev/baidu/bdg/doris/core/be/output/conf/be.conf
+-- Up-to-date: /home/disk2/pxl/dev/baidu/bdg/doris/core/be/output/conf/odbcinst.ini
+Build docs
+  adding: contents/ (stored 0%)
+  adding: contents/sql-statements/ (stored 0%)
+  adding: contents/sql-statements/Data Types/ (stored 0%)
+  adding: contents/sql-statements/Data Types/DOUBLE.md (deflated 39%)
+  adding: contents/sql-statements/Data Types/BITMAP.md (deflated 36%)
+  adding: contents/sql-statements/Data Types/CHAR.md (deflated 36%)
+  adding: contents/sql-statements/Data Types/FLOAT.md (deflated 39%)
+  adding: contents/sql-statements/Data Types/STRING.md (deflated 34%)
+  adding: contents/sql-statements/Data Types/BOOLEAN.md (deflated 38%)
+  adding: contents/sql-statements/Data Types/VARCHAR.md (deflated 36%)
+  adding: contents/sql-statements/Data Types/TINYINT.md (deflated 37%)
+  adding: contents/sql-statements/Data Types/DATE.md (deflated 36%)
+  adding: contents/sql-statements/Data Types/BIGINT.md (deflated 37%)
+  adding: contents/sql-statements/Data Types/HLL.md (deflated 34%)
+  adding: contents/sql-statements/Data Types/SMALLINT.md (deflated 37%)
+  adding: contents/sql-statements/Data Types/DECIMAL.md (deflated 34%)
+  adding: contents/sql-statements/Data Types/DATETIME.md (deflated 35%)
+  adding: contents/sql-statements/Data Types/INT.md (deflated 36%)
+  adding: contents/sql-statements/Data Types/LARGEINT.md (deflated 37%)
+  adding: contents/sql-statements/Account Management/ (stored 0%)
+  adding: contents/sql-statements/Account Management/REVOKE.md (deflated 42%)
+  adding: contents/sql-statements/Account Management/CREATE USER.md (deflated 46%)
+  adding: contents/sql-statements/Account Management/SET PROPERTY.md (deflated 54%)
+  adding: contents/sql-statements/Account Management/SHOW GRANTS.md (deflated 45%)
+  adding: contents/sql-statements/Account Management/DROP ROLE.md (deflated 39%)
+  adding: contents/sql-statements/Account Management/SHOW ROLES.md (deflated 36%)
+  adding: contents/sql-statements/Account Management/CREATE ROLE.md (deflated 39%)
+  adding: contents/sql-statements/Account Management/DROP USER.md (deflated 40%)
+  adding: contents/sql-statements/Account Management/GRANT.md (deflated 56%)
+  adding: contents/sql-statements/Account Management/SET PASSWORD.md (deflated 42%)
+  adding: contents/sql-statements/Data Definition/ (stored 0%)
+  adding: contents/sql-statements/Data Definition/create-function.md (deflated 60%)
+  adding: contents/sql-statements/Data Definition/DROP REPOSITORY.md (deflated 39%)
+  adding: contents/sql-statements/Data Definition/RESTORE.md (deflated 51%)
+  adding: contents/sql-statements/Data Definition/SHOW RESOURCES.md (deflated 45%)
+  adding: contents/sql-statements/Data Definition/DROP DATABASE.md (deflated 37%)
+  adding: contents/sql-statements/Data Definition/ALTER VIEW.md (deflated 39%)
+  adding: contents/sql-statements/Data Definition/DROP ENCRYPTKEY.md (deflated 36%)
+  adding: contents/sql-statements/Data Definition/CREATE INDEX.md (deflated 40%)
+  adding: contents/sql-statements/Data Definition/DROP VIEW.md (deflated 39%)
+  adding: contents/sql-statements/Data Definition/CREATE TABLE LIKE.md (deflated 59%)
+  adding: contents/sql-statements/Data Definition/CREATE DATABASE.md (deflated 40%)
+  adding: contents/sql-statements/Data Definition/CREATE MATERIALIZED VIEW.md (deflated 70%)
+  adding: contents/sql-statements/Data Definition/CANCEL ALTER.md (deflated 52%)
+  adding: contents/sql-statements/Data Definition/CREATE ENCRYPTKEY.md (deflated 52%)
+  adding: contents/sql-statements/Data Definition/show-functions.md (deflated 50%)
+  adding: contents/sql-statements/Data Definition/CREATE REPOSITORY.md (deflated 57%)
+  adding: contents/sql-statements/Data Definition/DROP INDEX.md (deflated 35%)
+  adding: contents/sql-statements/Data Definition/CANCEL BACKUP.md (deflated 39%)
+  adding: contents/sql-statements/Data Definition/HLL.md (deflated 54%)
+  adding: contents/sql-statements/Data Definition/DROP TABLE.md (deflated 39%)
+  adding: contents/sql-statements/Data Definition/drop-function.md (deflated 39%)
+  adding: contents/sql-statements/Data Definition/ALTER DATABASE.md (deflated 50%)
+  adding: contents/sql-statements/Data Definition/DROP MATERIALIZED VIEW.md (deflated 65%)
+  adding: contents/sql-statements/Data Definition/RECOVER.md (deflated 45%)
+  adding: contents/sql-statements/Data Definition/SHOW ENCRYPTKEYS.md (deflated 49%)
+  adding: contents/sql-statements/Data Definition/CREATE RESOURCE.md (deflated 53%)
+  adding: contents/sql-statements/Data Definition/CREATE TABLE.md (deflated 70%)
+  adding: contents/sql-statements/Data Definition/CANCEL RESTORE.md (deflated 37%)
+  adding: contents/sql-statements/Data Definition/DROP RESOURCE.md (deflated 38%)
+  adding: contents/sql-statements/Data Definition/CREATE VIEW.md (deflated 48%)
+  adding: contents/sql-statements/Data Definition/BACKUP.md (deflated 46%)
+  adding: contents/sql-statements/Data Definition/ALTER TABLE.md (deflated 70%)
+  adding: contents/sql-statements/Data Definition/TRUNCATE TABLE.md (deflated 40%)
+  adding: contents/sql-statements/Data Manipulation/ (stored 0%)
+  adding: contents/sql-statements/Data Manipulation/SHOW PROPERTY.md (deflated 41%)
+  adding: contents/sql-statements/Data Manipulation/SHOW DATABASES.md (deflated 38%)
+  adding: contents/sql-statements/Data Manipulation/ROUTINE LOAD.md (deflated 71%)
+  adding: contents/sql-statements/Data Manipulation/SHOW REPOSITORIES.md (deflated 41%)
+  adding: contents/sql-statements/Data Manipulation/SHOW RESTORE.md (deflated 51%)
+  adding: contents/sql-statements/Data Manipulation/SHOW PARTITION ID.md (deflated 42%)
+  adding: contents/sql-statements/Data Manipulation/BEGIN.md (deflated 55%)
+  adding: contents/sql-statements/Data Manipulation/MINI LOAD.md (deflated 60%)
+  adding: contents/sql-statements/Data Manipulation/alter-routine-load.md (deflated 52%)
+  adding: contents/sql-statements/Data Manipulation/SHOW ALTER.md (deflated 47%)
+  adding: contents/sql-statements/Data Manipulation/DELETE.md (deflated 49%)
+  adding: contents/sql-statements/Data Manipulation/SHOW LOAD.md (deflated 53%)
+  adding: contents/sql-statements/Data Manipulation/SHOW STREAM LOAD.md (deflated 53%)
+  adding: contents/sql-statements/Data Manipulation/SHOW PARTITIONS.md (deflated 49%)
+  adding: contents/sql-statements/Data Manipulation/SHOW DATABASE ID.md (deflated 40%)
+  adding: contents/sql-statements/Data Manipulation/insert.md (deflated 52%)
+  adding: contents/sql-statements/Data Manipulation/MULTI LOAD.md (deflated 61%)
+  adding: contents/sql-statements/Data Manipulation/STREAM LOAD.md (deflated 63%)
+  adding: contents/sql-statements/Data Manipulation/STOP ROUTINE LOAD.md (deflated 38%)
+  adding: contents/sql-statements/Data Manipulation/SHOW DATA.md (deflated 61%)
+  adding: contents/sql-statements/Data Manipulation/SHOW EXPORT.md (deflated 47%)
+  adding: contents/sql-statements/Data Manipulation/SHOW TABLE ID.md (deflated 39%)
+  adding: contents/sql-statements/Data Manipulation/SHOW CREATE FUNCTION.md (deflated 40%)
+  adding: contents/sql-statements/Data Manipulation/SHOW BACKUP.md (deflated 50%)
+  adding: contents/sql-statements/Data Manipulation/SHOW DYNAMIC PARTITION TABLES.md (deflated 41%)
+  adding: contents/sql-statements/Data Manipulation/BROKER LOAD.md (deflated 70%)
+  adding: contents/sql-statements/Data Manipulation/CANCEL LOAD.md (deflated 39%)
+  adding: contents/sql-statements/Data Manipulation/SHOW SNAPSHOT.md (deflated 48%)
+  adding: contents/sql-statements/Data Manipulation/GROUP BY.md (deflated 64%)
+  adding: contents/sql-statements/Data Manipulation/RESUME ROUTINE LOAD.md (deflated 40%)
+  adding: contents/sql-statements/Data Manipulation/EXPORT.md (deflated 56%)
+  adding: contents/sql-statements/Data Manipulation/SHOW ROUTINE LOAD.md (deflated 55%)
+  adding: contents/sql-statements/Data Manipulation/SHOW TABLET.md (deflated 51%)
+  adding: contents/sql-statements/Data Manipulation/SHOW DELETE.md (deflated 38%)
+  adding: contents/sql-statements/Data Manipulation/UPDATE.md (deflated 40%)
+  adding: contents/sql-statements/Data Manipulation/LOAD.md (deflated 64%)
+  adding: contents/sql-statements/Data Manipulation/SHOW TABLES.md (deflated 37%)
+  adding: contents/sql-statements/Data Manipulation/SPARK LOAD.md (deflated 58%)
+  adding: contents/sql-statements/Data Manipulation/PAUSE ROUTINE LOAD.md (deflated 40%)
+  adding: contents/sql-statements/Data Manipulation/SHOW TRANSACTION.md (deflated 45%)
+  adding: contents/sql-statements/Data Manipulation/SHOW CREATE ROUTINE LOAD.md (deflated 39%)
+  adding: contents/sql-statements/Data Manipulation/SHOW ROUTINE LOAD TASK.md (deflated 38%)
+  adding: contents/sql-statements/Administration/ (stored 0%)
+  adding: contents/sql-statements/Administration/CREATE CLUSTER.md (deflated 47%)
+  adding: contents/sql-statements/Administration/DROP CLUSTER.md (deflated 39%)
+  adding: contents/sql-statements/Administration/ADMIN SET REPLICA STATUS.md (deflated 46%)
+  adding: contents/sql-statements/Administration/ADMIN SET CONFIG.md (deflated 40%)
+  adding: contents/sql-statements/Administration/ADMIN SHOW REPLICA STATUS.md (deflated 48%)
+  adding: contents/sql-statements/Administration/SET LDAP_ADMIN_PASSWORD.md (deflated 40%)
+  adding: contents/sql-statements/Administration/LINK DATABASE.md (deflated 42%)
+  adding: contents/sql-statements/Administration/ALTER SYSTEM.md (deflated 59%)
+  adding: contents/sql-statements/Administration/ADMIN SHOW REPLICA DISTRIBUTION.md (deflated 44%)
+  adding: contents/sql-statements/Administration/UNINSTALL PLUGIN.md (deflated 40%)
+  adding: contents/sql-statements/Administration/SHOW TABLE STATUS.md (deflated 40%)
+  adding: contents/sql-statements/Administration/ALTER CLUSTER.md (deflated 42%)
+  adding: contents/sql-statements/Administration/ADMIN REPAIR.md (deflated 40%)
+  adding: contents/sql-statements/Administration/INSTALL PLUGIN.md (deflated 48%)
+  adding: contents/sql-statements/Administration/CANCEL DECOMMISSION.md (deflated 40%)
+  adding: contents/sql-statements/Administration/SHOW VIEW.md (deflated 38%)
+  adding: contents/sql-statements/Administration/ADMIN-SHOW-DATA-SKEW.md (deflated 39%)
+  adding: contents/sql-statements/Administration/SHOW INDEX.md (deflated 40%)
+  adding: contents/sql-statements/Administration/DROP FILE.md (deflated 38%)
+  adding: contents/sql-statements/Administration/SHOW TRASH.md (deflated 42%)
+  adding: contents/sql-statements/Administration/SHOW BROKER.md (deflated 37%)
+  adding: contents/sql-statements/Administration/ENTER.md (deflated 37%)
+  adding: contents/sql-statements/Administration/SHOW FRONTENDS.md (deflated 38%)
+  adding: contents/sql-statements/Administration/MIGRATE DATABASE.md (deflated 38%)
+  adding: contents/sql-statements/Administration/ADMIN CHECK TABLET.md (deflated 40%)
+  adding: contents/sql-statements/Administration/SHOW FILE.md (deflated 39%)
+  adding: contents/sql-statements/Administration/SHOW FULL COLUMNS.md (deflated 41%)
+  adding: contents/sql-statements/Administration/ADMIN CANCEL REPAIR.md (deflated 40%)
+  adding: contents/sql-statements/Administration/SHOW MIGRATIONS.md (deflated 38%)
+  adding: contents/sql-statements/Administration/ADMIN SHOW CONFIG.md (deflated 49%)
+  adding: contents/sql-statements/Administration/SHOW PLUGINS.md (deflated 40%)
+  adding: contents/sql-statements/Administration/CREATE FILE.md (deflated 47%)
+  adding: contents/sql-statements/Administration/ADMIN CLEAN TRASH.md (deflated 43%)
+  adding: contents/sql-statements/Administration/SHOW BACKENDS.md (deflated 43%)
+  adding: contents/sql-statements/Utility/ (stored 0%)
+  adding: contents/sql-statements/Utility/DESCRIBE.md (deflated 40%)
+  adding: contents/sql-functions/ (stored 0%)
+  adding: contents/sql-functions/cast.md (deflated 48%)
+  adding: contents/sql-functions/aggregate-functions/ (stored 0%)
+  adding: contents/sql-functions/aggregate-functions/topn.md (deflated 62%)
+  adding: contents/sql-functions/aggregate-functions/sum.md (deflated 38%)
+  adding: contents/sql-functions/aggregate-functions/max.md (deflated 39%)
+  adding: contents/sql-functions/aggregate-functions/approx_count_distinct.md (deflated 38%)
+  adding: contents/sql-functions/aggregate-functions/bitmap_union.md (deflated 54%)
+  adding: contents/sql-functions/aggregate-functions/hll_union_agg.md (deflated 37%)
+  adding: contents/sql-functions/aggregate-functions/count.md (deflated 50%)
+  adding: contents/sql-functions/aggregate-functions/min.md (deflated 40%)
+  adding: contents/sql-functions/aggregate-functions/var_samp.md (deflated 41%)
+  adding: contents/sql-functions/aggregate-functions/avg.md (deflated 50%)
+  adding: contents/sql-functions/aggregate-functions/stddev_samp.md (deflated 41%)
+  adding: contents/sql-functions/aggregate-functions/percentile.md (deflated 41%)
+  adding: contents/sql-functions/aggregate-functions/variance.md (deflated 48%)
+  adding: contents/sql-functions/aggregate-functions/stddev.md (deflated 47%)
+  adding: contents/sql-functions/aggregate-functions/percentile_approx.md (deflated 50%)
+  adding: contents/sql-functions/date-time-functions/ (stored 0%)
+  adding: contents/sql-functions/date-time-functions/minute.md (deflated 39%)
+  adding: contents/sql-functions/date-time-functions/to_days.md (deflated 40%)
+  adding: contents/sql-functions/date-time-functions/dayofweek.md (deflated 48%)
+  adding: contents/sql-functions/date-time-functions/year.md (deflated 40%)
+  adding: contents/sql-functions/date-time-functions/convert_tz.md (deflated 58%)
+  adding: contents/sql-functions/date-time-functions/curdate.md (deflated 42%)
+  adding: contents/sql-functions/date-time-functions/week.md (deflated 61%)
+  adding: contents/sql-functions/date-time-functions/to_date.md (deflated 43%)
+  adding: contents/sql-functions/date-time-functions/date_add.md (deflated 44%)
+  adding: contents/sql-functions/date-time-functions/now.md (deflated 38%)
+  adding: contents/sql-functions/date-time-functions/makedate.md (deflated 46%)
+  adding: contents/sql-functions/date-time-functions/from_unixtime.md (deflated 58%)
+  adding: contents/sql-functions/date-time-functions/hour.md (deflated 39%)
+  adding: contents/sql-functions/date-time-functions/dayname.md (deflated 42%)
+  adding: contents/sql-functions/date-time-functions/curtime.md (deflated 40%)
+  adding: contents/sql-functions/date-time-functions/timestampdiff.md (deflated 62%)
+  adding: contents/sql-functions/date-time-functions/weekofyear.md (deflated 43%)
+  adding: contents/sql-functions/date-time-functions/time_round.md (deflated 63%)
+  adding: contents/sql-functions/date-time-functions/date_sub.md (deflated 44%)
+  adding: contents/sql-functions/date-time-functions/timestampadd.md (deflated 51%)
+  adding: contents/sql-functions/date-time-functions/utc_timestamp.md (deflated 40%)
+  adding: contents/sql-functions/date-time-functions/date_format.md (deflated 67%)
+  adding: contents/sql-functions/date-time-functions/from_days.md (deflated 39%)
+  adding: contents/sql-functions/date-time-functions/datediff.md (deflated 61%)
+  adding: contents/sql-functions/date-time-functions/day.md (deflated 38%)
+  adding: contents/sql-functions/date-time-functions/monthname.md (deflated 42%)
+  adding: contents/sql-functions/date-time-functions/current_timestamp.md (deflated 41%)
+  adding: contents/sql-functions/date-time-functions/month.md (deflated 39%)
+  adding: contents/sql-functions/date-time-functions/dayofmonth.md (deflated 41%)
+  adding: contents/sql-functions/date-time-functions/timediff.md (deflated 56%)
+  adding: contents/sql-functions/date-time-functions/unix_timestamp.md (deflated 60%)
+  adding: contents/sql-functions/date-time-functions/str_to_date.md (deflated 62%)
+  adding: contents/sql-functions/date-time-functions/yearweek.md (deflated 63%)
+  adding: contents/sql-functions/date-time-functions/second.md (deflated 39%)
+  adding: contents/sql-functions/date-time-functions/dayofyear.md (deflated 41%)
+  adding: contents/sql-functions/digital-masking.md (deflated 42%)
+  adding: contents/sql-functions/spatial-functions/ (stored 0%)
+  adding: contents/sql-functions/spatial-functions/st_y.md (deflated 40%)
+  adding: contents/sql-functions/spatial-functions/st_circle.md (deflated 42%)
+  adding: contents/sql-functions/spatial-functions/st_x.md (deflated 40%)
+  adding: contents/sql-functions/spatial-functions/st_contains.md (deflated 64%)
+  adding: contents/sql-functions/spatial-functions/st_distance_sphere.md (deflated 49%)
+  adding: contents/sql-functions/spatial-functions/st_geometryfromtext.md (deflated 48%)
+  adding: contents/sql-functions/spatial-functions/st_astext.md (deflated 42%)
+  adding: contents/sql-functions/spatial-functions/st_polygon.md (deflated 50%)
+  adding: contents/sql-functions/spatial-functions/st_linefromtext.md (deflated 48%)
+  adding: contents/sql-functions/spatial-functions/st_point.md (deflated 39%)
+  adding: contents/sql-functions/hash-functions/ (stored 0%)
+  adding: contents/sql-functions/hash-functions/murmur_hash3_32.md (deflated 52%)
+  adding: contents/sql-functions/window-function.md (deflated 71%)
+  adding: contents/sql-functions/bitmap-functions/ (stored 0%)
+  adding: contents/sql-functions/bitmap-functions/bitmap_contains.md (deflated 42%)
+  adding: contents/sql-functions/bitmap-functions/bitmap_min.md (deflated 43%)
+  adding: contents/sql-functions/bitmap-functions/bitmap_empty.md (deflated 42%)
+  adding: contents/sql-functions/bitmap-functions/bitmap_to_string.md (deflated 59%)
+  adding: contents/sql-functions/bitmap-functions/bitmap_union.md (deflated 41%)
+  adding: contents/sql-functions/bitmap-functions/bitmap_has_any.md (deflated 42%)
+  adding: contents/sql-functions/bitmap-functions/bitmap_from_string.md (deflated 54%)
+  adding: contents/sql-functions/bitmap-functions/bitmap_not.md (deflated 56%)
+  adding: contents/sql-functions/bitmap-functions/bitmap_xor.md (deflated 56%)
+  adding: contents/sql-functions/bitmap-functions/bitmap_hash.md (deflated 42%)
+  adding: contents/sql-functions/bitmap-functions/bitmap_intersect.md (deflated 45%)
+  adding: contents/sql-functions/bitmap-functions/to_bitmap.md (deflated 40%)
+  adding: contents/sql-functions/bitmap-functions/bitmap_and.md (deflated 44%)
+  adding: contents/sql-functions/bitmap-functions/bitmap_or.md (deflated 43%)
+  adding: contents/sql-functions/string-functions/ (stored 0%)
+  adding: contents/sql-functions/string-functions/get_json_string.md (deflated 64%)
+  adding: contents/sql-functions/string-functions/like/ (stored 0%)
+  adding: contents/sql-functions/string-functions/like/like.md (deflated 46%)
+  adding: contents/sql-functions/string-functions/like/not_like.md (deflated 47%)
+  adding: contents/sql-functions/string-functions/get_json_int.md (deflated 57%)
+  adding: contents/sql-functions/string-functions/lpad.md (deflated 44%)
+  adding: contents/sql-functions/string-functions/ltrim.md (deflated 39%)
+  adding: contents/sql-functions/string-functions/concat.md (deflated 48%)
+  adding: contents/sql-functions/string-functions/rpad.md (deflated 44%)
+  adding: contents/sql-functions/string-functions/starts_with.md (deflated 51%)
+  adding: contents/sql-functions/string-functions/concat_ws.md (deflated 51%)
+  adding: contents/sql-functions/string-functions/reverse.md (deflated 46%)
+  adding: contents/sql-functions/string-functions/money_format.md (deflated 49%)
+  adding: contents/sql-functions/string-functions/left.md (deflated 40%)
+  adding: contents/sql-functions/string-functions/locate.md (deflated 51%)
+  adding: contents/sql-functions/string-functions/group_concat.md (deflated 46%)
+  adding: contents/sql-functions/string-functions/lcase.md (deflated 38%)
+  adding: contents/sql-functions/string-functions/instr.md (deflated 44%)
+  adding: contents/sql-functions/string-functions/right.md (deflated 40%)
+  adding: contents/sql-functions/string-functions/ascii.md (deflated 43%)
+  adding: contents/sql-functions/string-functions/split_part.md (deflated 58%)
+  adding: contents/sql-functions/string-functions/json_quote.md (deflated 54%)
+  adding: contents/sql-functions/string-functions/replace.md (deflated 48%)
+  adding: contents/sql-functions/string-functions/ends_with.md (deflated 50%)
+  adding: contents/sql-functions/string-functions/get_json_double.md (deflated 59%)
+  adding: contents/sql-functions/string-functions/null_or_empty.md (deflated 50%)
+  adding: contents/sql-functions/string-functions/json_object.md (deflated 53%)
+  adding: contents/sql-functions/string-functions/repeat.md (deflated 43%)
+  adding: contents/sql-functions/string-functions/strleft.md (deflated 40%)
+  adding: contents/sql-functions/string-functions/regexp/ (stored 0%)
+  adding: contents/sql-functions/string-functions/regexp/regexp.md (deflated 42%)
+  adding: contents/sql-functions/string-functions/regexp/not_regexp.md (deflated 43%)
+  adding: contents/sql-functions/string-functions/regexp/regexp_extract.md (deflated 57%)
+  adding: contents/sql-functions/string-functions/regexp/regexp_replace.md (deflated 51%)
+  adding: contents/sql-functions/string-functions/strright.md (deflated 41%)
+  adding: contents/sql-functions/string-functions/char_length.md (deflated 44%)
+  adding: contents/sql-functions/string-functions/length.md (deflated 44%)
+  adding: contents/sql-functions/string-functions/json_array.md (deflated 53%)
+  adding: contents/sql-functions/string-functions/append_trailing_char_if_absent.md (deflated 54%)
+  adding: contents/sql-functions/string-functions/lower.md (deflated 38%)
+  adding: contents/sql-functions/string-functions/bit_length.md (deflated 46%)
+  adding: contents/sql-functions/string-functions/find_in_set.md (deflated 39%)
+***************************************
+Successfully build Doris
+***************************************
+===========================
+ Intall tools for Frontend
+===========================
+===========================
+ Finished! 
+===========================

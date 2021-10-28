@@ -31,50 +31,11 @@ IBloomFilterFuncBase* IBloomFilterFuncBase::create_bloom_filter(MemTracker* trac
                                                                 PrimitiveType type,
                                                                 bool vectorized_enable) {
     if (vectorized_enable) {
-        return new VBloomFilterFunc<CurrentBloomFilterAdaptor>(tracker);
+        return create_bloom_filter_raw<true>(tracker, type);
+    } else {
+        return create_bloom_filter_raw<false>(tracker, type);
     }
-
-    switch (type) {
-    case TYPE_BOOLEAN:
-        return new BloomFilterFunc<TYPE_BOOLEAN, CurrentBloomFilterAdaptor>(tracker);
-    case TYPE_TINYINT:
-        return new BloomFilterFunc<TYPE_TINYINT, CurrentBloomFilterAdaptor>(tracker);
-    case TYPE_SMALLINT:
-        return new BloomFilterFunc<TYPE_SMALLINT, CurrentBloomFilterAdaptor>(tracker);
-    case TYPE_INT:
-        return new BloomFilterFunc<TYPE_INT, CurrentBloomFilterAdaptor>(tracker);
-    case TYPE_BIGINT:
-        return new BloomFilterFunc<TYPE_BIGINT, CurrentBloomFilterAdaptor>(tracker);
-    case TYPE_LARGEINT:
-        return new BloomFilterFunc<TYPE_LARGEINT, CurrentBloomFilterAdaptor>(tracker);
-
-    case TYPE_FLOAT:
-        return new BloomFilterFunc<TYPE_FLOAT, CurrentBloomFilterAdaptor>(tracker);
-    case TYPE_DOUBLE:
-        return new BloomFilterFunc<TYPE_DOUBLE, CurrentBloomFilterAdaptor>(tracker);
-
-    case TYPE_DECIMALV2:
-        return new BloomFilterFunc<TYPE_DECIMALV2, CurrentBloomFilterAdaptor>(tracker);
-
-    case TYPE_DATE:
-        return new BloomFilterFunc<TYPE_DATE, CurrentBloomFilterAdaptor>(tracker);
-    case TYPE_DATETIME:
-        return new BloomFilterFunc<TYPE_DATETIME, CurrentBloomFilterAdaptor>(tracker);
-
-    case TYPE_CHAR:
-        return new BloomFilterFunc<TYPE_CHAR, CurrentBloomFilterAdaptor>(tracker);
-    case TYPE_VARCHAR:
-        return new BloomFilterFunc<TYPE_VARCHAR, CurrentBloomFilterAdaptor>(tracker);
-    case TYPE_STRING:
-        return new BloomFilterFunc<TYPE_STRING, CurrentBloomFilterAdaptor>(tracker);
-
-    default:
-        DCHECK(false) << "Invalid type.";
-    }
-
-    return nullptr;
 }
-
 BloomFilterPredicate::BloomFilterPredicate(const TExprNode& node)
         : Predicate(node),
           _is_prepare(false),

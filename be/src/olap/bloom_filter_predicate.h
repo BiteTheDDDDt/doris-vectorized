@@ -36,7 +36,7 @@ class VectorizedRowBatch;
 template <PrimitiveType type>
 class BloomFilterColumnPredicate : public ColumnPredicate {
 public:
-    using SpecificFilter = BloomFilterFunc<type, CurrentBloomFilterAdaptor>;
+    using SpecificFilter = BloomFilterFunc<type, CurrentBloomFilterAdaptor, false>;
 
     BloomFilterColumnPredicate(uint32_t column_id,
                                const std::shared_ptr<IBloomFilterFuncBase>& filter)
