@@ -119,7 +119,7 @@ struct RowRefList : RowRef {
 
     /// insert element after current one
     void insert(RowRef&& row_ref, Arena& pool) {
-        row_size++;
+        row_count++;
 
         if (!next) {
             next = pool.alloc<Batch>();
@@ -128,11 +128,11 @@ struct RowRefList : RowRef {
         next = next->insert(std::move(row_ref), pool);
     }
 
-    int get_row_size() { return row_size; }
+    uint32_t get_row_count() { return row_count; }
 
 private:
     Batch* next = nullptr;
-    int row_size = 1;
+    uint32_t row_count = 1;
 };
 
 // using MapI32 = doris::vectorized::HashMap<UInt32, MappedAll, HashCRC32<UInt32>>;

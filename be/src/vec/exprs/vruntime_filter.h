@@ -50,7 +50,6 @@ private:
     std::vector<VExprContext*>& _probe_expr_context;
     std::vector<VExprContext*>& _build_expr_context;
     const std::vector<TRuntimeFilterDesc>& _runtime_filter_descs;
-    // prob_contition index -> [IRuntimeFilter]
     std::map<int, std::list<IRuntimeFilter*>> _runtime_filters;
 };
 

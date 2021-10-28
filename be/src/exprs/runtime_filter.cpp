@@ -1105,8 +1105,12 @@ Status RuntimeFilterSlots::init(RuntimeState* state, ObjectPool* pool, MemTracke
         DCHECK(runtime_filter->expr_order() >= 0);
         DCHECK(runtime_filter->expr_order() < _probe_expr_context.size());
 
+        // do not create 'in filter' when hash_table size over limit
         bool over_max_in_num = (hash_table_size >= state->runtime_filter_max_in_num());
+
         bool is_in_filter = (runtime_filter->type() == RuntimeFilterType::IN_FILTER);
+
+        // do not create 'bloom filter' and 'minmax filter' when 'in filter' has created
         bool pass_not_in = (has_in_filter[runtime_filter->expr_order()] &&
                             !runtime_filter->has_remote_target());
 
