@@ -27,15 +27,6 @@
 
 namespace doris {
 
-IBloomFilterFuncBase* IBloomFilterFuncBase::create_bloom_filter(MemTracker* tracker,
-                                                                PrimitiveType type,
-                                                                bool vectorized_enable) {
-    if (vectorized_enable) {
-        return create_bloom_filter_raw<true>(tracker, type);
-    } else {
-        return create_bloom_filter_raw<false>(tracker, type);
-    }
-}
 BloomFilterPredicate::BloomFilterPredicate(const TExprNode& node)
         : Predicate(node),
           _is_prepare(false),

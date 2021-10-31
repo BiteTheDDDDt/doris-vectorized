@@ -218,64 +218,84 @@ std::string type_to_odbc_string(PrimitiveType t);
 TTypeDesc gen_type_desc(const TPrimitiveType::type val);
 TTypeDesc gen_type_desc(const TPrimitiveType::type val, const std::string& name);
 
-template <PrimitiveType type>
+template <PrimitiveType type, bool vectorized_enable = false>
 struct PrimitiveTypeTraits {};
 
-template <>
-struct PrimitiveTypeTraits<TYPE_BOOLEAN> {
+template <bool vectorized_enable>
+struct PrimitiveTypeTraits<TYPE_BOOLEAN, vectorized_enable> {
     using CppType = bool;
 };
-template <>
-struct PrimitiveTypeTraits<TYPE_TINYINT> {
+
+template <bool vectorized_enable>
+struct PrimitiveTypeTraits<TYPE_TINYINT, vectorized_enable> {
     using CppType = int8_t;
 };
-template <>
-struct PrimitiveTypeTraits<TYPE_SMALLINT> {
+
+template <bool vectorized_enable>
+struct PrimitiveTypeTraits<TYPE_SMALLINT, vectorized_enable> {
     using CppType = int16_t;
 };
-template <>
-struct PrimitiveTypeTraits<TYPE_INT> {
+
+template <bool vectorized_enable>
+struct PrimitiveTypeTraits<TYPE_INT, vectorized_enable> {
     using CppType = int32_t;
 };
-template <>
-struct PrimitiveTypeTraits<TYPE_BIGINT> {
+
+template <bool vectorized_enable>
+struct PrimitiveTypeTraits<TYPE_BIGINT, vectorized_enable> {
     using CppType = int64_t;
 };
-template <>
-struct PrimitiveTypeTraits<TYPE_FLOAT> {
+
+template <bool vectorized_enable>
+struct PrimitiveTypeTraits<TYPE_FLOAT, vectorized_enable> {
     using CppType = float;
 };
-template <>
-struct PrimitiveTypeTraits<TYPE_DOUBLE> {
+
+template <bool vectorized_enable>
+struct PrimitiveTypeTraits<TYPE_DOUBLE, vectorized_enable> {
     using CppType = double;
-};
-template <>
-struct PrimitiveTypeTraits<TYPE_DATE> {
-    using CppType = DateTimeValue;
-};
-template <>
-struct PrimitiveTypeTraits<TYPE_DATETIME> {
-    using CppType = DateTimeValue;
-};
-template <>
-struct PrimitiveTypeTraits<TYPE_DECIMALV2> {
-    using CppType = DecimalV2Value;
-};
-template <>
-struct PrimitiveTypeTraits<TYPE_LARGEINT> {
-    using CppType = __int128_t;
-};
-template <>
-struct PrimitiveTypeTraits<TYPE_CHAR> {
-    using CppType = StringValue;
-};
-template <>
-struct PrimitiveTypeTraits<TYPE_VARCHAR> {
-    using CppType = StringValue;
 };
 
 template <>
-struct PrimitiveTypeTraits<TYPE_STRING> {
+struct PrimitiveTypeTraits<TYPE_DATE, false> {
+    using CppType = DateTimeValue;
+};
+template <>
+struct PrimitiveTypeTraits<TYPE_DATE, true> {
+    using CppType = __int128;
+};
+
+template <>
+struct PrimitiveTypeTraits<TYPE_DATETIME, false> {
+    using CppType = DateTimeValue;
+};
+template <>
+struct PrimitiveTypeTraits<TYPE_DATETIME, true> {
+    using CppType = __int128;
+};
+
+template <bool vectorized_enable>
+struct PrimitiveTypeTraits<TYPE_DECIMALV2, vectorized_enable> {
+    using CppType = DecimalV2Value;
+};
+
+template <bool vectorized_enable>
+struct PrimitiveTypeTraits<TYPE_LARGEINT, vectorized_enable> {
+    using CppType = __int128_t;
+};
+
+template <bool vectorized_enable>
+struct PrimitiveTypeTraits<TYPE_CHAR, vectorized_enable> {
+    using CppType = StringValue;
+};
+
+template <bool vectorized_enable>
+struct PrimitiveTypeTraits<TYPE_VARCHAR, vectorized_enable> {
+    using CppType = StringValue;
+};
+
+template <bool vectorized_enable>
+struct PrimitiveTypeTraits<TYPE_STRING, vectorized_enable> {
     using CppType = StringValue;
 };
 

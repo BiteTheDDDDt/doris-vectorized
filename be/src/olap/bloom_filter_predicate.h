@@ -23,6 +23,7 @@
 #include <roaring/roaring.hh>
 
 #include "exprs/bloomfilter_predicate.h"
+#include "exprs/create_predicate_function.h"
 #include "olap/column_predicate.h"
 #include "olap/field.h"
 #include "runtime/string_value.hpp"
@@ -36,7 +37,7 @@ class VectorizedRowBatch;
 template <PrimitiveType type>
 class BloomFilterColumnPredicate : public ColumnPredicate {
 public:
-    using SpecificFilter = BloomFilterFunc<type, CurrentBloomFilterAdaptor, false>;
+    using SpecificFilter = BloomFilterFunc<type, CurrentBloomFilterAdaptor>;
 
     BloomFilterColumnPredicate(uint32_t column_id,
                                const std::shared_ptr<IBloomFilterFuncBase>& filter)

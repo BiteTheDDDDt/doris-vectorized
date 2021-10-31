@@ -37,23 +37,24 @@ ColumnPredicate* BloomFilterColumnPredicateFactory::create_column_predicate(
         FieldType type) {
     std::shared_ptr<IBloomFilterFuncBase> filter;
     switch (type) {
-#define M(NAME)                                                                                 \
-    case OLAP_FIELD_##NAME: {                                                                   \
-        filter.reset(IBloomFilterFuncBase::create_bloom_filter(bloom_filter->tracker(), NAME)); \
-        filter->light_copy(bloom_filter.get());                                                 \
-        return new BloomFilterColumnPredicate<NAME>(column_id, filter);                         \
+#define M(NAME)                                                                               \
+    case OLAP_FIELD_##NAME: {                                                                 \
+        filter.reset(create_predicate_function<BloomFilterTraits>(PrimitiveType::NAME, false, \
+                                                                  bloom_filter->tracker()));  \
+        filter->light_copy(bloom_filter.get());                                               \
+        return new BloomFilterColumnPredicate<NAME>(column_id, filter);                       \
     }
         APPLY_FOR_PRIMTYPE(M)
 #undef M
     case OLAP_FIELD_TYPE_DECIMAL: {
-        filter.reset(
-                IBloomFilterFuncBase::create_bloom_filter(bloom_filter->tracker(), TYPE_DECIMALV2));
+        filter.reset(create_predicate_function<BloomFilterTraits>(PrimitiveType::TYPE_DECIMALV2,
+                                                                  false, bloom_filter->tracker()));
         filter->light_copy(bloom_filter.get());
         return new BloomFilterColumnPredicate<TYPE_DECIMALV2>(column_id, filter);
     }
     case OLAP_FIELD_TYPE_BOOL: {
-        filter.reset(
-                IBloomFilterFuncBase::create_bloom_filter(bloom_filter->tracker(), TYPE_BOOLEAN));
+        filter.reset(create_predicate_function<BloomFilterTraits>(PrimitiveType::TYPE_BOOLEAN,
+                                                                  false, bloom_filter->tracker()));
         filter->light_copy(bloom_filter.get());
         return new BloomFilterColumnPredicate<TYPE_BOOLEAN>(column_id, filter);
     }
