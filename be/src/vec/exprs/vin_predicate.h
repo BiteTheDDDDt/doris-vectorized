@@ -18,21 +18,21 @@
 #pragma once
 
 #include "exprs/hybrid_set.h"
-
 #include "vec/exprs/vexpr.h"
 #include "vec/functions/function.h"
 
 namespace doris::vectorized {
-class VInPredicate final: public VExpr {
+class VInPredicate final : public VExpr {
 public:
     VInPredicate(const TExprNode& node);
     ~VInPredicate() = default;
-    virtual doris::Status execute(doris::vectorized::Block* block, int* result_column_id);
-    virtual doris::Status prepare(doris::RuntimeState* state, const doris::RowDescriptor& desc,
+    virtual Status execute(vectorized::Block* block, int* result_column_id);
+    virtual Status prepare(RuntimeState* state, const RowDescriptor& desc,
                                   VExprContext* context);
-    virtual doris::Status open(doris::RuntimeState* state, VExprContext* context);
-    virtual void close(doris::RuntimeState* state, VExprContext* context);
-    virtual VExpr* clone(doris::ObjectPool* pool) const override {
+    Status prepare(RuntimeState* state, HybridSetBase* bloom_filter);
+    virtual Status open(RuntimeState* state, VExprContext* context);
+    virtual void close(RuntimeState* state, VExprContext* context);
+    virtual VExpr* clone(ObjectPool* pool) const override {
         return pool->add(new VInPredicate(*this));
     }
     virtual const std::string& expr_name() const override;
@@ -49,6 +49,6 @@ private:
     std::shared_ptr<HybridSetBase> _hybrid_set;
 
 private:
-    static const constexpr char* function_name = "in";
+    static constexpr char* function_name = "in";
 };
 } // namespace doris::vectorized

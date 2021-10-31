@@ -35,6 +35,7 @@
 #include "util/progress_updater.h"
 #include "util/spinlock.h"
 #include "vec/exec/volap_scanner.h"
+#include "vec/exprs/vectorized_fn_call.h"
 #include "vec/exprs/vexpr.h"
 
 namespace doris {
@@ -369,6 +370,10 @@ protected:
 
     vectorized::VExpr* _dfs_peel_conjunct(vectorized::VExpr* expr, int& leaf_index);
     void _peel_pushed_conjuncts(); // remove pushed expr from conjunct tree
+
+    Status _link_vexpr(vectorized::VExpr* lhs, vectorized::VExpr* rhs, vectorized::VExpr* result);
+    Status _merge_expr_to_vconjunct(vectorized::VExprContext* vconjunct_ctx_ptr,
+                                    vectorized::VExpr* expr);
 };
 
 } // namespace doris

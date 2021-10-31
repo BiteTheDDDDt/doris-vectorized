@@ -115,6 +115,7 @@ public:
             register_function_time_of_fuction(instance);
             register_function_string(instance);
             register_function_in(instance);
+            register_function_bloom_filter(instance);
             register_function_if(instance);
             register_function_date_time_computation(instance);
             register_function_str_to_date(instance);

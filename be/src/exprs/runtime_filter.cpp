@@ -356,7 +356,7 @@ TTypeDesc create_type_desc(PrimitiveType type) {
 }
 
 // only used to push down to olap engine
-Expr* create_literal(ObjectPool* pool, PrimitiveType type, const void* data) {
+TExprNode create_literal_texprnode(ObjectPool* pool, PrimitiveType type, const void* data) {
     TExprNode node;
 
     switch (type) {
@@ -439,11 +439,19 @@ Expr* create_literal(ObjectPool* pool, PrimitiveType type, const void* data) {
     }
     node.__set_node_type(get_expr_node_type(type));
     node.__set_type(create_type_desc(type));
+    return node;
+}
+Expr* create_literal(ObjectPool* pool, PrimitiveType type, const void* data) {
+    TExprNode node=create_literal_texprnode(pool,type,data);
     return pool->add(new Literal(node));
 }
+VExpr* create_vliteral(ObjectPool* pool, PrimitiveType type, const void* data) {
+    TExprNode node=create_literal_texprnode(pool,type,data);
+    return pool->add(new vectorized::VLiteral(node));
+}
 
-BinaryPredicate* create_bin_predicate(ObjectPool* pool, PrimitiveType prim_type,
-                                      TExprOpcode::type opcode) {
+TExprNode create_bin_predicate_texprnode(ObjectPool* pool, PrimitiveType prim_type,
+                                         TExprOpcode::type opcode) {
     TExprNode node;
     TScalarType tscalar_type;
     tscalar_type.__set_type(TPrimitiveType::BOOLEAN);
@@ -452,14 +460,35 @@ BinaryPredicate* create_bin_predicate(ObjectPool* pool, PrimitiveType prim_type,
     ttype_node.__set_scalar_type(tscalar_type);
     TTypeDesc t_type_desc;
     t_type_desc.types.push_back(ttype_node);
+    TFunction fn;
+    if (opcode == TExprOpcode::type::LE) {
+        fn.name.function_name = "le";
+    } else if (opcode == TExprOpcode::type::GE) {
+        fn.name.function_name = "ge";
+    } else {
+        DCHECK(false) >> "Do not support opcode: " << opcode;
+    }
+    node.__set_fn(fn);
     node.__set_type(t_type_desc);
     node.__set_opcode(opcode);
     node.__set_child_type(to_thrift(prim_type));
     node.__set_num_children(2);
     node.__set_output_scale(-1);
     node.__set_node_type(TExprNodeType::BINARY_PRED);
+    return node
+}
+
+BinaryPredicate* create_bin_predicate(ObjectPool* pool, PrimitiveType prim_type,
+                                      TExprOpcode::type opcode) {
+    TExprNode node = create_bin_predicate_texprnode(pool, prim_type, opcode);
     return (BinaryPredicate*)pool->add(BinaryPredicate::from_thrift(node));
 }
+VectorizedFnCall* create_vbin_predicate(ObjectPool* pool, PrimitiveType prim_type,
+                                        TExprOpcode::type opcode) {
+    TExprNode node = create_bin_predicate_texprnode(pool, prim_type, opcode);
+    return (VectorizedFnCall*)pool->add(VectorizedFnCall(node));
+}
+
 // This class is a wrapper of runtime predicate function
 class RuntimePredicateWrapper {
 public:
@@ -571,6 +600,68 @@ public:
             RETURN_IF_ERROR(bloom_pred->prepare(state, _bloomfilter_func.release()));
             bloom_pred->add_child(Expr::copy(_pool, prob_expr->root()));
             ExprContext* ctx = _pool->add(new ExprContext(bloom_pred));
+            container->push_back(ctx);
+            break;
+        }
+        default:
+            DCHECK(false);
+            break;
+        }
+        return Status::OK();
+    }
+
+    template <class T>
+    Status get_push_vcontext(T* container, RuntimeState* state, VExprContext* prob_expr) {
+        DCHECK(state != nullptr);
+        DCHECK(container != nullptr);
+        DCHECK(_pool != nullptr);
+        DCHECK(prob_expr->root()->type().type == _column_return_type);
+
+        switch (_filter_type) {
+        case RuntimeFilterType::IN_FILTER: {
+            TTypeDesc type_desc = create_type_desc(_column_return_type);
+            TExprNode node;
+            node.__set_type(type_desc);
+            node.__set_node_type(TExprNodeType::IN_PRED);
+            node.in_predicate.__set_is_not_in(false);
+            node.__set_opcode(TExprOpcode::FILTER_IN);
+            node.__isset.vector_opcode = true;
+            node.__set_vector_opcode(to_in_opcode(_column_return_type));
+            auto in_pred = _pool->add(new vectorized::VInPredicate(node));
+            RETURN_IF_ERROR(in_pred->prepare(state, _hybrid_set.release()));
+            in_pred->add_child(VExpr::copy(_pool, prob_expr->root()));
+            VExprContext* ctx = _pool->add(new VExprContext(in_pred));
+            container->push_back(ctx);
+            break;
+        }
+        case RuntimeFilterType::MINMAX_FILTER: {
+            // create max filter
+            auto max_pred = create_vbin_predicate(_pool, _column_return_type, TExprOpcode::LE);
+            auto max_literal = create_vliteral(_pool, _column_return_type, _minmax_func->get_max());
+            max_pred->add_child(vectorized::VExpr::copy(_pool, prob_expr->root()));
+            max_pred->add_child(max_literal);
+            container->push_back(_pool->add(new vectorized::VExprContext(max_pred)));
+            // create min filter
+            auto min_pred = create_vbin_predicate(_pool, _column_return_type, TExprOpcode::GE);
+            auto min_literal = create_vliteral(_pool, _column_return_type, _minmax_func->get_min());
+            min_pred->add_child(VExpr::copy(_pool, prob_expr->root()));
+            min_pred->add_child(min_literal);
+            container->push_back(_pool->add(new vectorized::VExprContext(min_pred)));
+            break;
+        }
+        case RuntimeFilterType::BLOOM_FILTER: {
+            // create a bloom filter
+            TTypeDesc type_desc = create_type_desc(_column_return_type);
+            TExprNode node;
+            node.__set_type(type_desc);
+            node.__set_node_type(TExprNodeType::BLOOM_PRED);
+            node.__set_opcode(TExprOpcode::RT_FILTER);
+            node.__isset.vector_opcode = true;
+            node.__set_vector_opcode(to_in_opcode(_column_return_type));
+            auto bloom_pred = _pool->add(new vectorized::VBloomFilterPredicate(node));
+            RETURN_IF_ERROR(bloom_pred->prepare(state, _bloomfilter_func.release()));
+            bloom_pred->add_child(vectorized::VExpr::copy(_pool, prob_expr->root()));
+            vectorized::VExprContext* ctx = _pool->add(new vectorized::VExprContext(bloom_pred));
             container->push_back(ctx);
             break;
         }
@@ -832,6 +923,24 @@ Status IRuntimeFilter::get_prepared_context(std::vector<ExprContext*>* push_expr
     return Expr::open(_push_down_ctxs, _state);
 }
 
+Status IRuntimeFilter::get_prepared_vcontext(
+        std::vector<vectorized::VExprContext*>* push_expr_vctxs, const RowDescriptor& desc,
+        const std::shared_ptr<MemTracker>& tracker) {
+    DCHECK(_is_ready);
+    DCHECK(is_consumer());
+    std::lock_guard<std::mutex> guard(_inner_mutex);
+
+    if (!_push_down_vctxs.empty()) {
+        push_expr_vctxs->insert(push_expr_vctxs->end(), _push_down_vctxs.begin(),
+                                _push_down_vctxs.end());
+        return Status::OK();
+    }
+    // push expr
+    RETURN_IF_ERROR(_wrapper->get_push_vcontext(&_push_down_vctxs, _state, _probe_vctx));
+    RETURN_IF_ERROR(vectorized::VExpr::prepare(_push_down_vctxs, _state, desc, tracker));
+    return Expr::open(_push_down_vctxs, _state);
+}
+
 bool IRuntimeFilter::await() {
     DCHECK(is_consumer());
     SCOPED_TIMER(_await_time_cost);
@@ -888,7 +997,11 @@ Status IRuntimeFilter::init_with_desc(const TRuntimeFilterDesc* desc, int node_i
             DCHECK(false) << "runtime filter not found node_id:" << node_id;
             return Status::InternalError("not found a node id");
         }
-        RETURN_IF_ERROR(Expr::create_expr_tree(_pool, iter->second, &_probe_ctx));
+        if (!_vectorized_enable) {
+            RETURN_IF_ERROR(Expr::create_expr_tree(_pool, iter->second, &_probe_ctx));
+        } else {
+            RETURN_IF_ERROR(VExpr::create_expr_tree(_pool, iter->second, &_probe_vctx));
+        }
     }
 
     _wrapper = _pool->add(new RuntimePredicateWrapper(_state, _mem_tracker, _pool, &params));

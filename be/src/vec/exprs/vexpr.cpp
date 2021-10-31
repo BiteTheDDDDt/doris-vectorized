@@ -106,6 +106,9 @@ Status VExpr::create_expr(doris::ObjectPool* pool, const doris::TExprNode& texpr
         *expr = pool->add(new VInPredicate(texpr_node));
         break;
     }
+    case doris::TExprNodeType::BLOOM_PRED: {
+        *expr = pool->add(new VBloomFilterPredicate(texpr_node));
+    }
     default:
         return Status::InternalError(
                 fmt::format("Unknown expr node type: {}", texpr_node.node_type));
@@ -246,6 +249,15 @@ std::string VExpr::debug_string(const std::vector<VExprContext*>& ctxs) {
         exprs.push_back(ctxs[i]->root());
     }
     return debug_string(exprs);
+}
+
+VExpr* VExpr::copy(ObjectPool* pool, VExpr* old_expr) {
+    auto new_expr = old_expr->clone(pool);
+    for (auto child : old_expr->_children) {
+        auto new_child = copy(pool, child);
+        new_expr->_children.push_back(new_child);
+    }
+    return new_expr;
 }
 
 } // namespace doris::vectorized

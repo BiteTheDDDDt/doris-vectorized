@@ -17,31 +17,29 @@
 
 #pragma once
 
-#include "exprs/hybrid_set.h"
+#include "exprs/bloomfilter_predicate.h"
 #include "vec/columns/column_dummy.h"
 
 namespace doris::vectorized {
 
-using ConstSetPtr = std::shared_ptr<HybridSetBase>;
+using ConstBloomFilterPtr = std::shared_ptr<IBloomFilterFuncBase>;
 
-/** A column containing multiple values in the `IN` section.
-  * Behaves like a constant-column (because the set is one, not its own for each line).
-  * This column has a nonstandard value, so it can not be obtained via a normal interface.
-  */
-class ColumnSet final : public COWHelper<IColumnDummy, ColumnSet> {
+class ColumnBloomFilter final : public COWHelper<IColumnDummy, ConstBloomFilterPtr> {
 public:
-    friend class COWHelper<IColumnDummy, ColumnSet>;
+    friend class COWHelper<IColumnDummy, ConstBloomFilterPtr>;
 
-    ColumnSet(size_t s_, const ConstSetPtr& data_) : data(data_) { s = s_; }
-    ColumnSet(const ColumnSet&) = default;
+    ConstBloomFilterPtr(size_t size, const ConstBloomFilterPtr& data) : _data(data) { s = size; }
+    ConstBloomFilterPtr(const ConstBloomFilterPtr&) = default;
 
-    const char* get_family_name() const override { return "Set"; }
-    MutableColumnPtr clone_dummy(size_t s_) const override { return ColumnSet::create(s_, data); }
+    const char* get_family_name() const override { return "BloomFilter"; }
+    MutableColumnPtr clone_dummy(size_t size) const override {
+        return ColumnBloomFilter::create(size, data);
+    }
 
-    ConstSetPtr get_data() const { return data; }
+    ConstBloomFilterPtr get_data() const { return data; }
 
 private:
-    ConstSetPtr data;
+    ConstBloomFilterPtr _data;
 };
 
 } // namespace doris::vectorized

@@ -28,6 +28,8 @@
 #include "runtime/types.h"
 #include "util/runtime_profile.h"
 #include "util/uid_util.h"
+#include "vec/exprs/vexpr_context.h"
+#include "vec/exprs/vin_predicate.h"
 
 namespace doris {
 class Predicate;
@@ -110,7 +112,9 @@ public:
               _expr_order(-1),
               _always_true(false),
               _probe_ctx(nullptr),
-              _is_ignored(false) {}
+              _probe_vctx(nullptr),
+              _is_ignored(false),
+              _vectorized_enable(state && state->enable_vectorized_exec()) {}
 
     ~IRuntimeFilter() = default;
 
@@ -246,15 +250,19 @@ protected:
     // it only used in consumer to generate runtime_filter expr_context
     // we don't have to prepare it or close it
     ExprContext* _probe_ctx;
+    vectorized::VExprContext* _probe_vctx;
 
     // Indicate whether runtime filter expr has been ignored
     bool _is_ignored;
+
+    bool _vectorized_enable;
 
     // some runtime filter will generate
     // multiple contexts such as minmax filter
     // these context is called prepared by this,
     // consumer_close should be called before release
     std::vector<ExprContext*> _push_down_ctxs;
+    std::vector<vectorized::VExprContext*> _push_down_vctxs;
 
     struct rpc_context;
     std::shared_ptr<rpc_context> _rpc_context;

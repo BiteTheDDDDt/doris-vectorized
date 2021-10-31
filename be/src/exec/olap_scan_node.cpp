@@ -510,21 +510,17 @@ void OlapScanNode::remove_pushed_conjuncts(RuntimeState* state) {
     _conjunct_ctxs = std::move(new_conjunct_ctxs);
     _direct_conjunct_size = new_direct_conjunct_size;
 
-    for (auto push_down_ctx : _pushed_conjuncts_index) {
-        auto iter = _conjunctid_to_runtime_filter_ctxs.find(push_down_ctx);
-        if (iter != _conjunctid_to_runtime_filter_ctxs.end()) {
-            iter->second->runtimefilter->set_push_down_profile();
-        }
-    }
-    // set vconjunct_ctx is empty, if all conjunct
-    if (_direct_conjunct_size == 0) {
-        if (_vconjunct_ctx_ptr.get() != nullptr) {
-            (*_vconjunct_ctx_ptr.get())->close(state);
-            _vconjunct_ctx_ptr = nullptr;
-        }
-    }
     // filter idle conjunct in vexpr_contexts
     _peel_pushed_conjuncts();
+
+    for (auto it : _conjunctid_to_runtime_filter_ctxs) {
+        if (_pushed_conjuncts_index.count(it.first)) {
+            it.second->runtimefilter->set_push_down_profile();
+        } else {
+            vectorized::VExpr* expr = Expr::vcopy(_pool, _conjunct_ctxs[it.first]->root());
+            _merge_expr_to_vconjunct(*_vconjunct_ctx_ptr.get(), expr);
+        }
+    }
 }
 
 void OlapScanNode::eval_const_conjuncts() {
@@ -1720,6 +1716,81 @@ void OlapScanNode::_peel_pushed_conjuncts() {
                                               new_conjunct_expr_root->debug_string());
         }
     }
+}
+
+Status OlapScanNode::_link_vexpr(vectorized::VExpr* lhs, vectorized::VExpr* rhs,
+                                 vectorized::VExpr* result) {
+    if (lhs == nullptr || lhs == nullptr) {
+        result = lhs != nullptr ? lhs : rhs;
+        return;
+    }
+    TFunction fn;
+    fn.name.function_name = "and";
+
+    TTypeDesc type;
+    {
+        TTypeNode node;
+        node.__set_type(TTypeNodeType::SCALAR);
+        TScalarType scalar_type;
+        scalar_type.__set_type(TPrimitiveType::BOOLEAN);
+        node.__set_scalar_type(scalar_type);
+        type.types.push_back(node);
+    }
+
+    bool is_nullable = lhs->data_type()->is_nullable() | rhs->data_type()->is_nullable();
+
+    TExprNode node;
+    node.__set_node_type(TExprNodeType::COMPUTE_FUNCTION_CALL);
+    node.__set_type(type);
+    node.__set_fn(fn);
+    node.__set_is_nullable(is_nullable);
+
+    {
+        Status status = vectorized::VExpr::create_expr(_pool, node, &result);
+
+        if (!status.ok()) {
+            LOG(ERROR) << "Create expr failed cause " << status.get_error_msg();
+            return status;
+        }
+    }
+
+    result->set_children({lhs, rhs});
+
+    {
+        Status status = reinterpret_cast<vectorized::VectorizedFnCall*>(result)->init_fn_call();
+
+        if (!status.ok()) {
+            LOG(ERROR) << "Init function call expr failed cause " << status.get_error_msg();
+            return status;
+        }
+    }
+
+    return Status::OK();
+}
+
+Status OlapScanNode::_merge_vexpr_ctx(vectorized::VExprContext* lhs, vectorized::VExprContext* rhs,
+                                      vectorized::VExprContext* result) {
+    if (lhs == nullptr || lhs == nullptr) {
+        result = lhs != nullptr ? lhs : rhs;
+        return;
+    }
+    vectorized::VExpr lhs_root = lhs->root();
+    vectorized::VExpr rhs_root = rhs->root();
+    lhs->set_root(_merge_vexpr(lhs->root(), rhs->root()));
+    return result=lhs;
+
+    vectorized::VExpr* conjunct_expr_root = (*_vconjunct_ctx_ptr)->root();
+
+    if (conjunct_expr_root == nullptr) {
+        conjunct_expr_root = expr;
+        return Status::OK();
+    }
+
+    vectorized::VExpr* linked_expr = nullptr;
+    RETURN_IF_ERROR(_link_vexpr(conjunct_expr_root, expr, linked_expr));
+    conjunct_expr_root = linked_expr;
+
+    return Status::OK();
 }
 
 } // namespace doris

@@ -17,8 +17,6 @@
 
 #include "vec/exprs/vin_predicate.h"
 
-#include <string_view>
-
 #include "vec/columns/column_set.h"
 #include "vec/core/field.h"
 #include "vec/data_types/data_type_factory.hpp"
@@ -34,8 +32,8 @@ VInPredicate::VInPredicate(const TExprNode& node)
           _null_in_set(false),
           _hybrid_set() {}
 
-doris::Status VInPredicate::prepare(doris::RuntimeState* state, const doris::RowDescriptor& desc,
-                                    VExprContext* context) {
+Status VInPredicate::prepare(RuntimeState* state, const RowDescriptor& desc,
+                             VExprContext* context) {
     RETURN_IF_ERROR(VExpr::prepare(state, desc, context));
 
     if (_is_prepare) {
@@ -55,7 +53,21 @@ doris::Status VInPredicate::prepare(doris::RuntimeState* state, const doris::Row
     return Status::OK();
 }
 
-doris::Status VInPredicate::open(doris::RuntimeState* state, VExprContext* context) {
+Status InPredicate::prepare(RuntimeState* state, HybridSetBase* set) {
+    if (_is_prepare) {
+        return Status::OK();
+    }
+
+    _hybrid_set.reset(set);
+    if (_hybrid_set == nullptr) {
+        return Status::InternalError("Unknown column type.");
+    }
+    _is_prepare = true;
+
+    return Status::OK();
+}
+
+Status VInPredicate::open(RuntimeState* state, VExprContext* context) {
     RETURN_IF_ERROR(VExpr::open(state, context));
 
     Block block;
@@ -108,13 +120,13 @@ doris::Status VInPredicate::open(doris::RuntimeState* state, VExprContext* conte
     return Status::OK();
 }
 
-void VInPredicate::close(doris::RuntimeState* state, VExprContext* context) {
+void VInPredicate::close(RuntimeState* state, VExprContext* context) {
     VExpr::close(state, context);
 }
 
-doris::Status VInPredicate::execute(doris::vectorized::Block* block, int* result_column_id) {
+Status VInPredicate::execute(vectorized::Block* block, int* result_column_id) {
     // for each child call execute
-    doris::vectorized::ColumnNumbers arguments(2);
+    vectorized::ColumnNumbers arguments(2);
     int column_id = -1;
     _children[0]->execute(block, &column_id);
     arguments[0] = column_id;

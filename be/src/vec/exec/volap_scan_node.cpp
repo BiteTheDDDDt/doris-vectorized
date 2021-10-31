@@ -198,7 +198,7 @@ void VOlapScanNode::scanner_thread(VOlapScanner* scanner) {
         scanner->set_opened();
     }
 
-    std::vector<ExprContext*> contexts;
+    std::vector<VExprContext*> contexts;
     auto& scanner_filter_apply_marks = *scanner->mutable_runtime_filter_marks();
     DCHECK(scanner_filter_apply_marks.size() == _runtime_filter_descs.size());
     for (size_t i = 0; i < scanner_filter_apply_marks.size(); i++) {
@@ -209,18 +209,19 @@ void VOlapScanNode::scanner_thread(VOlapScanner* scanner) {
             DCHECK(runtime_filter != nullptr);
             bool ready = runtime_filter->is_ready();
             if (ready) {
-                runtime_filter->get_prepared_context(&contexts, row_desc(), _expr_mem_tracker);
+                runtime_filter->get_prepared_vcontext(&contexts, row_desc(), _expr_mem_tracker);
                 _runtime_filter_ctxs[i].apply_mark = true;
             }
         }
     }
 
     if (!contexts.empty()) {
-        std::vector<ExprContext*> new_contexts;
-        auto& scanner_conjunct_ctxs = *scanner->conjunct_ctxs();
-        Expr::clone_if_not_exists(contexts, state, &new_contexts);
-        scanner_conjunct_ctxs.insert(scanner_conjunct_ctxs.end(), new_contexts.begin(),
-                                     new_contexts.end());
+
+        auto& scanner_vconjunct_ctxs = *scanner->vconjunct_ctx_ptr();
+
+        for (VExprContext* ctx : new_contexts) {
+            _merge_expr_to_vconjunct(scanner_vconjunct_ctxs, ctx);
+        }
         scanner->set_use_pushdown_conjuncts(true);
     }
 
