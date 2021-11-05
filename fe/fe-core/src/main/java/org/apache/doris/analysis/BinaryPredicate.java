@@ -268,6 +268,10 @@ public class BinaryPredicate extends Predicate implements Writable {
     }
 
     private boolean canCompareDate(PrimitiveType t1, PrimitiveType t2) {
+        if(t1 == PrimitiveType.DATE && t2 == PrimitiveType.DATE) {
+            // do not cast here
+            return false;
+        }
         if (t1.isDateType()) {
             if (t2.isDateType() || t2.isStringType() || t2.isIntegerType()) {
                 return true;
