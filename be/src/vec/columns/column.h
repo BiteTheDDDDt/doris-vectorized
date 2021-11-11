@@ -152,7 +152,7 @@ public:
     /// Appends like `insert_from`.
     /// But support unnullable column insert from nullable column, vice versa.
     /// And iff src is nullptr, it will insert default element.
-    virtual void insert_from_adapted(const IColumn& src, size_t n);
+    virtual void insert_from_adapted(COW<IColumn>::immutable_ptr<IColumn> src, size_t n);
 
     /// Appends range of elements from other column with the same type.
     /// Could be used to concatenate columns.
