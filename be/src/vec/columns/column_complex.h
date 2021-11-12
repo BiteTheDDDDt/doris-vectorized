@@ -22,6 +22,7 @@
 #include "util/bitmap_value.h"
 #include "vec/columns/column.h"
 #include "vec/columns/column_impl.h"
+#include "vec/columns/columns_common.h"
 
 namespace doris::vectorized {
 template <typename T>
@@ -45,14 +46,14 @@ public:
     }
 
     void insert_from(const IColumn& src, size_t n) override {
-        data.push_back(static_cast<const Self&>(src).get_data()[n]);
+        data.emplace_back(static_cast<const Self&>(src).get_data()[n]);
     }
 
     void insert_data(const char* pos, size_t /*length*/) override {
-        data.push_back(*reinterpret_cast<const T*>(pos));
+        data.emplace_back(*reinterpret_cast<const T*>(pos));
     }
 
-    void insert_default() override { data.push_back(T()); }
+    void insert_default() override { data.emplace_back(T()); }
 
     void clear() override { data.clear(); }
 
@@ -206,8 +207,33 @@ ColumnPtr ColumnComplexType<T>::filter(const IColumn::Filter& filt,
     const UInt8* filt_end = filt_pos + size;
     const T* data_pos = data.data();
 
+    /** A slightly more optimized version.
+    * Based on the assumption that often pieces of consecutive values
+    *  completely pass or do not pass the filter.
+    * Therefore, we will optimistically check the parts of `SIMD_BYTES` values.
+    */
+    static constexpr size_t SIMD_BYTES = 64;
+    const UInt8* filt_end_aligned = filt_pos + size / SIMD_BYTES * SIMD_BYTES;
+
+    while (filt_pos < filt_end_aligned) {
+        UInt64 mask = bytes64_mask_to_bits64_mask(filt_pos);
+
+        while (mask) {
+            size_t index = __builtin_ctzll(mask);
+            res_data.emplace_back(data_pos[index]);
+#ifdef __BMI__
+            mask = _blsr_u64(mask);
+#else
+            mask = mask & (mask - 1);
+#endif
+        }
+
+        filt_pos += SIMD_BYTES;
+        data_pos += SIMD_BYTES;
+    }
+
     while (filt_pos < filt_end) {
-        if (*filt_pos) res_data.push_back(*data_pos);
+        if (*filt_pos) res_data.emplace_back(*data_pos);
 
         ++filt_pos;
         ++data_pos;
@@ -257,7 +283,7 @@ ColumnPtr ColumnComplexType<T>::replicate(const IColumn::Offsets& offsets) const
         prev_offset = offsets[i];
 
         for (size_t j = 0; j < size_to_replicate; ++j) {
-            res_data.push_back(data[i]);
+            res_data.emplace_back(data[i]);
         }
     }
 
