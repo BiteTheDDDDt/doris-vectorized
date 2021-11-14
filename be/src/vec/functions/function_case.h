@@ -83,6 +83,7 @@ public:
 
     bool use_default_implementation_for_nulls() const override { return false; }
 
+    template <bool has_null>
     Status execute_impl_has_case(const DataTypePtr& data_type, Block& block,
                                  const ColumnNumbers& arguments, size_t result,
                                  size_t input_rows_count) {
@@ -119,6 +120,7 @@ public:
         return Status::OK();
     }
 
+    template <bool has_null>
     Status execute_impl_no_case(const DataTypePtr& data_type, Block& block,
                                 const ColumnNumbers& arguments, size_t result,
                                 size_t input_rows_count) {
@@ -130,8 +132,10 @@ public:
             bool insert_else = true;
             for (int arg_idx = 0; arg_idx + 1 < arguments.size(); arg_idx += 2) {
                 auto when_column_ptr = block.get_by_position(arguments[arg_idx]).column;
-                if (when_column_ptr->is_null_at(row_idx)) {
-                    continue;
+                if constexpr (has_null) {
+                    if (when_column_ptr->is_null_at(row_idx)) {
+                        continue;
+                    }
                 }
 
                 if (when_column_ptr->get_bool(row_idx)) {
@@ -151,17 +155,29 @@ public:
         return Status::OK();
     }
 
+    template <bool has_null>
+    Status execute_impl_raw(const DataTypePtr& data_type, Block& block,
+                            const ColumnNumbers& arguments, size_t result,
+                            size_t input_rows_count) override {
+        if constexpr (has_case) {
+            return execute_impl_has_case<has_null>(data_type, block, arguments, result,
+                                                   input_rows_count);
+        } else {
+            return execute_impl_no_case<has_null>(data_type, block, arguments, result,
+                                                  input_rows_count);
+        }
+    }
+
     Status execute_impl(FunctionContext* context, Block& block, const ColumnNumbers& arguments,
                         size_t result, size_t input_rows_count) override {
         CaseState* case_state = reinterpret_cast<CaseState*>(
                 context->get_function_state(FunctionContext::FRAGMENT_LOCAL));
-
-        if constexpr (has_case) {
-            return execute_impl_has_case(case_state->result_type, block, arguments, result,
-                                         input_rows_count);
+        if (case_state->result_type->is_nullable()) {
+            return execute_impl_raw<true>(case_state->result_type, block, arguments, result,
+                                          input_rows_count);
         } else {
-            return execute_impl_no_case(case_state->result_type, block, arguments, result,
-                                        input_rows_count);
+            return execute_impl_raw<false>(case_state->result_type, block, arguments, result,
+                                           input_rows_count);
         }
     }
 };
