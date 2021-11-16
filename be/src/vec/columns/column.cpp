@@ -57,13 +57,11 @@ void IColumn::insert_from(const IColumn& src, size_t n) {
     insert(src[n]);
 }
 
-void IColumn::insert_from_adapted(COW<IColumn>::immutable_ptr<IColumn> src, size_t n) {
-    if (src == nullptr) {
-        insert_default();
-    } else if (src->is_nullable()) {
-        insert_from(assert_cast<const ColumnNullable&>(*src).get_nested_column(), n);
+void IColumn::insert_from_adapted(const IColumn& src, size_t n) {
+    if (src.is_nullable()) {
+        insert_from(assert_cast<const ColumnNullable&>(src).get_nested_column(), n);
     } else {
-        insert_from(*src, n);
+        insert_from(src, n);
     }
 }
 

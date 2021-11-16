@@ -149,13 +149,11 @@ void ColumnNullable::insert_from_not_nullable(const IColumn& src, size_t n) {
     get_null_map_data().push_back(0);
 }
 
-void ColumnNullable::insert_from_adapted(COW<IColumn>::immutable_ptr<IColumn> src, size_t n) {
-    if (src == nullptr) {
-        insert_default();
-    } else if (src->is_nullable()) {
-        insert_from(*src, n);
+void ColumnNullable::insert_from_adapted(const IColumn& src, size_t n) {
+    if (src.is_nullable()) {
+        insert_from(src, n);
     } else {
-        insert_from_not_nullable(*src, n);
+        insert_from_not_nullable(src, n);
     }
 }
 

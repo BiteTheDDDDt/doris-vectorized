@@ -82,7 +82,7 @@ public:
     void insert_range_from(const IColumn& src, size_t start, size_t length) override;
     void insert(const Field& x) override;
     void insert_from(const IColumn& src, size_t n) override;
-    void insert_from_adapted(COW<IColumn>::immutable_ptr<IColumn> src, size_t n) override;
+    void insert_from_adapted(const IColumn& src, size_t n) override;
 
     void insert_from_not_nullable(const IColumn& src, size_t n);
     void insert_range_from_not_nullable(const IColumn& src, size_t start, size_t length);
