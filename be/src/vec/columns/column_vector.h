@@ -129,6 +129,10 @@ public:
         data.push_back(static_cast<const Self&>(src).get_data()[n]);
     }
 
+    void local_insert_from(const IColumn& src, size_t n) {
+        data.push_back(static_cast<const Self&>(src).get_data()[n]);
+    }
+
     void insert_data(const char* pos, size_t /*length*/) override {
         data.push_back(unaligned_load<T>(pos));
     }
