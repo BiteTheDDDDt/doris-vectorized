@@ -51,6 +51,56 @@ struct FunctionCaseName<true, true> {
     static constexpr auto name = "case_has_case_has_else";
 };
 
+struct CaseWhenColumnHolder {
+    using OptionalPtr = std::optional<ColumnPtr>;
+
+    std::vector<OptionalPtr> when_ptrs; // case, when, when...
+    std::vector<OptionalPtr> then_ptrs; // else, then, then...
+    size_t pair_count;
+    size_t rows_count;
+
+    CaseWhenColumnHolder(Block& block, const ColumnNumbers& arguments, size_t input_rows_count,
+                         bool has_case, bool has_else, bool when_null, bool then_null)
+            : rows_count(input_rows_count) {
+        when_ptrs.emplace_back(has_case ? OptionalPtr(block.get_by_position(arguments[0]).column)
+                                        : std::nullopt);
+        then_ptrs.emplace_back(
+                has_else
+                        ? OptionalPtr(block.get_by_position(arguments[arguments.size() - 1]).column)
+                        : std::nullopt);
+
+        int begin = 0 + has_case;
+        int end = arguments.size() - has_else;
+        pair_count = (end - begin) / 2 + 1; // when/then at [1: pair_count)
+
+        for (int i = begin; i < end; i += 2) {
+            when_ptrs.emplace_back(OptionalPtr(block.get_by_position(arguments[i]).column));
+            then_ptrs.emplace_back(OptionalPtr(block.get_by_position(arguments[i + 1]).column));
+        }
+
+        // if case_column/when_column is nullable. cast all case_column/when_column to nullable.
+        if (when_null) {
+            for (OptionalPtr& column_ptr : when_ptrs) {
+                cast_to_nullable(column_ptr);
+            }
+        }
+
+        // if else_column/then_column is nullable. cast all else_column/then_column to nullable.
+        if (then_null) {
+            for (OptionalPtr& column_ptr : then_ptrs) {
+                cast_to_nullable(column_ptr);
+            }
+        }
+    }
+
+    void cast_to_nullable(OptionalPtr& column_ptr) {
+        if (!column_ptr.has_value() || column_ptr.value()->is_nullable()) {
+            return;
+        }
+        column_ptr.emplace(make_nullable(column_ptr.value()));
+    }
+};
+
 template <bool has_case, bool has_else>
 class FunctionCase : public IFunction {
 public:
@@ -83,233 +133,250 @@ public:
 
     bool use_default_implementation_for_nulls() const override { return false; }
 
-    template <bool has_null>
-    Status execute_impl_has_case(const DataTypePtr& data_type, Block& block,
-                                 const ColumnNumbers& arguments, size_t result,
-                                 size_t input_rows_count) {
-        auto result_column_ptr = data_type->create_column();
-        auto case_column_ptr = block.get_by_position(arguments[0]).column;
-        auto else_column_ptr =
-                has_else ? block.get_by_position(arguments[arguments.size() - 1]).column : nullptr;
+    template <typename ColumnType, bool when_null, bool then_null>
+    Status execute_impl_has_case(const DataTypePtr& data_type, Block& block, size_t result,
+                                 CaseWhenColumnHolder column_holder) {
+        int rows_count = column_holder.rows_count;
 
-        for (int row_idx = 0; row_idx < input_rows_count; row_idx++) {
-            bool insert_else = true;
-            if (!case_column_ptr->is_null_at(row_idx)) {
-                for (int arg_idx = 1; arg_idx + 1 < arguments.size(); arg_idx += 2) {
-                    auto when_column_ptr = block.get_by_position(arguments[arg_idx]).column;
-                    if (when_column_ptr->is_null_at(row_idx)) {
-                        continue;
-                    }
+        // `then` data index corresponding to each row of results, 0 represents `else`.
+        uint8_t __restrict then_idx[rows_count];
+        memset(then_idx, 0, sizeof(then_idx));
 
-                    if (case_column_ptr->compare_at_adapted(row_idx, row_idx, *when_column_ptr,
-                                                            -1) == 0) {
-                        auto then_column_ptr = block.get_by_position(arguments[arg_idx + 1]).column;
-                        result_column_ptr->insert_from_adapted(*then_column_ptr, row_idx);
-                        insert_else = false;
-                        break;
-                    }
-                }
-            }
-
-            if (insert_else) {
-                if constexpr (has_else) {
-                    result_column_ptr->insert_default();
-                } else {
-                    result_column_ptr->insert_from_adapted(*else_column_ptr, row_idx);
+        auto case_column_ptr = column_holder.when_ptrs[0].value();
+        // TODO: need simd here
+        for (uint8_t i = 1; i < column_holder.pair_count; i++) {
+            auto when_column_ptr = column_holder.when_ptrs[i].value();
+            for (int row_idx = 0; row_idx < rows_count; row_idx++) {
+                if (!then_idx[row_idx] &&
+                    case_column_ptr->compare_at(row_idx, row_idx, *when_column_ptr, -1) == 0) {
+                    then_idx[row_idx] = i;
                 }
             }
         }
 
-        block.replace_by_position(result, std::move(result_column_ptr));
-        return Status::OK();
-    }
-
-    template <bool has_null, bool insert_not_nullable, typename ColumnType>
-    Status execute_impl_no_case(const DataTypePtr& data_type, Block& block,
-                                const ColumnNumbers& arguments, size_t result,
-                                size_t input_rows_count) {
-        std::vector<uint8_t> then_idx(input_rows_count, 0);
-
-        ColumnWithTypeAndName* columns_ptr[arguments.size()];
-
-        for (uint8_t arg_idx = 0; arg_idx + 1 < arguments.size(); arg_idx += 2) {
-            auto when_column_ptr = block.get_by_position(arguments[arg_idx]).column;
-            const auto& cond_data =
-                    reinterpret_cast<const ColumnUInt8*>(when_column_ptr.get())->get_data();
-
-            for (int row_idx = 0; row_idx < input_rows_count; row_idx++) {
-                if constexpr (has_null) {
-                    if (when_column_ptr->is_null_at(row_idx)) {
-                        continue;
-                    }
-                }
-
-                then_idx[row_idx] |= (!then_idx[row_idx] && cond_data[row_idx]) * (arg_idx + 1);
-            }
-
-            columns_ptr[arg_idx + 1] = &block.get_by_position(arguments[arg_idx + 1]);
-        }
-
         auto result_column_ptr = data_type->create_column();
-        
-        auto else_column_ptr =
-                has_else ? block.get_by_position(arguments[arguments.size() - 1]).column : nullptr;
-        auto* tmp_nullable_column_ptr =
-                has_null ? reinterpret_cast<ColumnNullable*>(result_column_ptr.get()) : nullptr;
-        auto* tmp_column_ptr = reinterpret_cast<ColumnType*>(
-                has_null ? &tmp_nullable_column_ptr->get_nested_column() : result_column_ptr.get());
 
         if constexpr (std::is_same_v<ColumnType, ColumnString>) {
-            for (int row_idx = 0; row_idx < input_rows_count; row_idx++) {
-                if (!then_idx[row_idx]) {
-                    if constexpr (has_else) {
-                        tmp_column_ptr->insert_from(*else_column_ptr, row_idx);
-                    } else {
-                        if constexpr (has_null) {
-                            tmp_nullable_column_ptr->insert_default();
-                        } else {
-                            tmp_column_ptr->insert_default();
-                        }
-                    }
-                } else {
-                    if constexpr (insert_not_nullable) {
-                        tmp_nullable_column_ptr->insert_from_not_nullable(
-                                *columns_ptr[then_idx[row_idx]]->column, row_idx);
-                    } else {
-                        tmp_column_ptr->insert_from(*columns_ptr[then_idx[row_idx]]->column,
-                                                    row_idx);
-                    }
-                }
-            }
+            // result_column and all then_column is not nullable.
+            // can't simd when type is string.
+            update_result_normal<ColumnType>(result_column_ptr, then_idx, column_holder);
+        } else if constexpr (then_null) {
+            // result_column and all then_column is nullable.
+            // TODO: make here simd automatically.
+            update_result_normal<ColumnType>(result_column_ptr, then_idx, column_holder);
         } else {
-            result_column_ptr->reserve(input_rows_count);
-
-            auto& tmp_data = tmp_column_ptr->get_data();
-            auto* null_map = has_null ? &(tmp_nullable_column_ptr->get_null_map_data()) : nullptr;
-
-            // set default
-            for (int row_idx = 0; row_idx < input_rows_count; row_idx++) {
-                tmp_data[row_idx] = 0;
-                if constexpr (has_null) {
-                    (*null_map)[row_idx] = 1;
-                }
-            }
-
-            // TODO: simd here and optmize other condition
-            for (uint8_t arg_idx = 1; arg_idx < arguments.size(); arg_idx += 2) {
-                auto& column_data =
-                        reinterpret_cast<const ColumnType*>(columns_ptr[arg_idx]->column.get())
-                                ->get_data();
-                for (int row_idx = 0; row_idx < input_rows_count; row_idx++) {
-                    if constexpr (std::is_same_v<ColumnType, ColumnFloat64> ||
-                                  std::is_same_v<ColumnType, ColumnFloat32>) {
-                        tmp_data[row_idx] += (then_idx[row_idx] == arg_idx) * column_data[row_idx];
-                    } else {
-                        tmp_data[row_idx] |= (then_idx[row_idx] == arg_idx) * column_data[row_idx];
-                    }
-
-                    if constexpr (has_null) {
-                        (*null_map)[row_idx] = 0;
-                    }
-                }
-            }
-
-            if constexpr (has_else) {
-                auto& else_data =
-                        reinterpret_cast<const ColumnType*>(else_column_ptr.get())->get_data();
-                for (int row_idx = 0; row_idx < input_rows_count; row_idx++) {
-                    if constexpr (std::is_same_v<ColumnType, ColumnFloat64> ||
-                                  std::is_same_v<ColumnType, ColumnFloat32>) {
-                        tmp_data[row_idx] += (!then_idx[row_idx]) * else_data[row_idx];
-                    } else {
-                        tmp_data[row_idx] |= (!then_idx[row_idx]) * else_data[row_idx];
-                    }
-
-                    if constexpr (has_null) {
-                        (*null_map)[row_idx] = 0;
-                    }
-                }
-            }
+            update_result_auto_simd<ColumnType>(result_column_ptr, then_idx, column_holder);
         }
 
         block.replace_by_position(result, std::move(result_column_ptr));
         return Status::OK();
     }
 
-    template <bool has_null, bool insert_not_nullable, typename ColumnType>
+    template <typename ColumnType, bool when_null, bool then_null>
+    Status execute_impl_no_case(const DataTypePtr& data_type, Block& block, size_t result,
+                                CaseWhenColumnHolder column_holder) {
+        int rows_count = column_holder.rows_count;
+
+        // `then` data index corresponding to each row of results, 0 represents `else`.
+        uint8_t __restrict then_idx[rows_count];
+        memset(then_idx, 0, sizeof(then_idx));
+
+        for (uint8_t i = 1; i < column_holder.pair_count; i++) {
+            auto when_column_ptr = column_holder.when_ptrs[i].value();
+            if constexpr (when_null) {
+                // TODO: need simd
+                for (int row_idx = 0; row_idx < rows_count; row_idx++) {
+                    if (!then_idx[row_idx] && when_column_ptr->get_bool(row_idx)) {
+                        then_idx[row_idx] = i;
+                    }
+                }
+            } else {
+                auto* __restrict cond_raw_data =
+                        reinterpret_cast<const ColumnUInt8*>(when_column_ptr.get())
+                                ->get_data()
+                                .data();
+
+                // simd automatically
+                for (int row_idx = 0; row_idx < rows_count; row_idx++) {
+                    then_idx[row_idx] |= (!then_idx[row_idx]) * cond_raw_data[row_idx] * i;
+                }
+            }
+        }
+
+        auto result_column_ptr = data_type->create_column();
+
+        if constexpr (std::is_same_v<ColumnType, ColumnString>) {
+            // result_column and all then_column is not nullable.
+            // can't simd when type is string.
+            update_result_normal<ColumnType>(result_column_ptr, then_idx, column_holder);
+        } else if constexpr (then_null) {
+            // result_column and all then_column is nullable.
+            // TODO: make here simd automatically.
+            update_result_normal<ColumnType>(result_column_ptr, then_idx, column_holder);
+        } else {
+            update_result_auto_simd<ColumnType>(result_column_ptr, then_idx, column_holder);
+        }
+
+        block.replace_by_position(result, std::move(result_column_ptr));
+        return Status::OK();
+    }
+
+    template <typename ColumnType>
+    void update_result_normal(MutableColumnPtr& result_column_ptr, uint8* then_idx,
+                              CaseWhenColumnHolder& column_holder) {
+        for (int row_idx = 0; row_idx < column_holder.rows_count; row_idx++) {
+            if constexpr (!has_else) {
+                if (!then_idx[row_idx]) {
+                    result_column_ptr->insert_default();
+                    continue;
+                }
+            }
+            result_column_ptr->insert_from(*column_holder.then_ptrs[then_idx[row_idx]].value(),
+                                           row_idx);
+        }
+    }
+
+    template <typename ColumnType>
+    void update_result_auto_simd(MutableColumnPtr& result_column_ptr, uint8* __restrict then_idx,
+                                 CaseWhenColumnHolder& column_holder) {
+        size_t rows_count = column_holder.rows_count;
+        result_column_ptr->resize(rows_count);
+        auto* __restrict result_raw_data =
+                reinterpret_cast<ColumnType*>(result_column_ptr.get())->get_data().data();
+
+        // set default value
+        for (int i = 0; i < rows_count; i++) {
+            result_raw_data[i] = 0;
+        }
+
+        // some types had simd automatically, but some not.
+        for (uint8_t i = (has_else ? 0 : 1); i < column_holder.pair_count; i++) {
+            auto* __restrict column_raw_data =
+                    reinterpret_cast<ColumnType*>(
+                            column_holder.then_ptrs[i].value()->assume_mutable().get())
+                            ->get_data()
+                            .data();
+
+            for (int row_idx = 0; row_idx < rows_count; row_idx++) {
+                result_raw_data[row_idx] += (then_idx[row_idx] == i) * column_raw_data[row_idx];
+            }
+        }
+    }
+
+    template <typename ColumnType, bool when_null, bool then_null>
     Status execute_impl_raw(const DataTypePtr& data_type, Block& block,
                             const ColumnNumbers& arguments, size_t result,
                             size_t input_rows_count) {
+        CaseWhenColumnHolder column_holder = CaseWhenColumnHolder(
+                block, arguments, input_rows_count, has_case, has_else, when_null, then_null);
         if constexpr (has_case) {
-            return execute_impl_has_case<has_null>(data_type, block, arguments, result,
-                                                   input_rows_count);
+            return execute_impl_has_case<ColumnType, when_null, then_null>(data_type, block, result,
+                                                                           column_holder);
         } else {
-            return execute_impl_no_case<has_null, insert_not_nullable, ColumnType>(
-                    data_type, block, arguments, result, input_rows_count);
+            return execute_impl_no_case<ColumnType, when_null, then_null>(data_type, block, result,
+                                                                          column_holder);
         }
     }
 
-    template <bool has_null, typename ColumnType>
-    Status execute_get_insert_from_not_null(const DataTypePtr& data_type, Block& block,
-                                            const ColumnNumbers& arguments, size_t result,
-                                            size_t input_rows_count) {
-        bool insert_not_nullable = false;
-        auto when_column_ptr = block.get_by_position(arguments[0]).column;
-        if (has_null && !when_column_ptr->is_nullable()) {
-            insert_not_nullable = true;
+    template <typename ColumnType, bool when_null>
+    Status execute_get_then_null(const DataTypePtr& data_type, Block& block,
+                                 const ColumnNumbers& arguments, size_t result,
+                                 size_t input_rows_count) {
+        bool then_null = false;
+        for (int i = 1 + has_case; i < arguments.size() - has_else; i += 2) {
+            auto then_column_ptr = block.get_by_position(arguments[i]).column;
+            if (then_column_ptr->is_nullable()) {
+                then_null = true;
+            }
+        }
+        if constexpr (has_else) {
+            auto else_column_ptr = block.get_by_position(arguments[arguments.size() - 1]).column;
+            if (else_column_ptr->is_nullable()) {
+                then_null = true;
+            }
         }
 
-        if (insert_not_nullable) {
-            return execute_impl_raw<has_null, true, ColumnType>(data_type, block, arguments, result,
-                                                                input_rows_count);
-        } else {
-            return execute_impl_raw<has_null, false, ColumnType>(data_type, block, arguments,
+        if (then_null) {
+            return execute_impl_raw<ColumnType, when_null, true>(data_type, block, arguments,
                                                                  result, input_rows_count);
+        } else {
+            return execute_impl_raw<ColumnType, when_null, false>(data_type, block, arguments,
+                                                                  result, input_rows_count);
         }
     }
 
-    template <bool has_null>
+    template <typename ColumnType>
+    Status execute_get_when_null(const DataTypePtr& data_type, Block& block,
+                                 const ColumnNumbers& arguments, size_t result,
+                                 size_t input_rows_count) {
+        bool when_null = false;
+        if constexpr (has_case) {
+            auto case_column_ptr = block.get_by_position(arguments[0]).column;
+            if (case_column_ptr->is_nullable()) {
+                when_null = true;
+            }
+        }
+        for (int i = has_case; i < arguments.size() - has_else; i += 2) {
+            auto when_column_ptr = block.get_by_position(arguments[i]).column;
+            if (when_column_ptr->is_nullable()) {
+                when_null = true;
+            }
+        }
+
+        if (when_null) {
+            return execute_get_then_null<ColumnType, true>(data_type, block, arguments, result,
+                                                           input_rows_count);
+        } else {
+            return execute_get_then_null<ColumnType, false>(data_type, block, arguments, result,
+                                                            input_rows_count);
+        }
+    }
+
     Status execute_get_type(const DataTypePtr& data_type, Block& block,
                             const ColumnNumbers& arguments, size_t result,
                             size_t input_rows_count) {
-        WhichDataType which(data_type);
+        WhichDataType which(data_type->is_nullable()
+                                    ? reinterpret_cast<const DataTypeNullable*>(data_type.get())
+                                              ->get_nested_type()
+                                    : data_type);
 
+        // TODO: use template traits here.
         if (which.is_uint8()) {
-            return execute_get_insert_from_not_null<has_null, ColumnUInt8>(
-                    data_type, block, arguments, result, input_rows_count);
+            return execute_get_when_null<ColumnUInt8>(data_type, block, arguments, result,
+                                                      input_rows_count);
         } else if (which.is_int16()) {
-            return execute_get_insert_from_not_null<has_null, ColumnInt16>(
-                    data_type, block, arguments, result, input_rows_count);
+            return execute_get_when_null<ColumnInt16>(data_type, block, arguments, result,
+                                                      input_rows_count);
         } else if (which.is_uint32()) {
-            return execute_get_insert_from_not_null<has_null, ColumnUInt32>(
-                    data_type, block, arguments, result, input_rows_count);
+            return execute_get_when_null<ColumnUInt32>(data_type, block, arguments, result,
+                                                       input_rows_count);
         } else if (which.is_uint64()) {
-            return execute_get_insert_from_not_null<has_null, ColumnUInt64>(
-                    data_type, block, arguments, result, input_rows_count);
+            return execute_get_when_null<ColumnUInt64>(data_type, block, arguments, result,
+                                                       input_rows_count);
         } else if (which.is_int8()) {
-            return execute_get_insert_from_not_null<has_null, ColumnInt8>(
-                    data_type, block, arguments, result, input_rows_count);
+            return execute_get_when_null<ColumnInt8>(data_type, block, arguments, result,
+                                                     input_rows_count);
         } else if (which.is_int16()) {
-            return execute_get_insert_from_not_null<has_null, ColumnInt16>(
-                    data_type, block, arguments, result, input_rows_count);
+            return execute_get_when_null<ColumnInt16>(data_type, block, arguments, result,
+                                                      input_rows_count);
         } else if (which.is_int32()) {
-            return execute_get_insert_from_not_null<has_null, ColumnInt32>(
-                    data_type, block, arguments, result, input_rows_count);
+            return execute_get_when_null<ColumnInt32>(data_type, block, arguments, result,
+                                                      input_rows_count);
         } else if (which.is_int64()) {
-            return execute_get_insert_from_not_null<has_null, ColumnInt64>(
-                    data_type, block, arguments, result, input_rows_count);
+            return execute_get_when_null<ColumnInt64>(data_type, block, arguments, result,
+                                                      input_rows_count);
         } else if (which.is_date_or_datetime()) {
-            return execute_get_insert_from_not_null<has_null, ColumnVector<DateTime>>(
-                    data_type, block, arguments, result, input_rows_count);
+            return execute_get_when_null<ColumnVector<DateTime>>(data_type, block, arguments,
+                                                                 result, input_rows_count);
         } else if (which.is_float32()) {
-            return execute_get_insert_from_not_null<has_null, ColumnFloat32>(
-                    data_type, block, arguments, result, input_rows_count);
+            return execute_get_when_null<ColumnFloat32>(data_type, block, arguments, result,
+                                                        input_rows_count);
         } else if (which.is_float64()) {
-            return execute_get_insert_from_not_null<has_null, ColumnFloat64>(
-                    data_type, block, arguments, result, input_rows_count);
+            return execute_get_when_null<ColumnFloat64>(data_type, block, arguments, result,
+                                                        input_rows_count);
         } else if (which.is_string()) {
-            return execute_get_insert_from_not_null<has_null, ColumnString>(
-                    data_type, block, arguments, result, input_rows_count);
+            return execute_get_when_null<ColumnString>(data_type, block, arguments, result,
+                                                       input_rows_count);
         } else {
             LOG(FATAL) << fmt::format("Unexpected type {} of argument of function {}",
                                       data_type->get_name(), get_name());
@@ -321,13 +388,9 @@ public:
                         size_t result, size_t input_rows_count) override {
         CaseState* case_state = reinterpret_cast<CaseState*>(
                 context->get_function_state(FunctionContext::FRAGMENT_LOCAL));
-        if (case_state->result_type->is_nullable()) {
-            return execute_get_type<true>(case_state->result_type, block, arguments, result,
-                                          input_rows_count);
-        } else {
-            return execute_get_type<false>(case_state->result_type, block, arguments, result,
-                                           input_rows_count);
-        }
+
+        return execute_get_type(case_state->result_type, block, arguments, result,
+                                input_rows_count);
     }
 };
 
