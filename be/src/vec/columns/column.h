@@ -285,6 +285,10 @@ public:
     /// It affects performance only (not correctness).
     virtual void reserve(size_t /*n*/) {}
 
+    /// Resize memory for specified amount of elements. If reservation isn't possible, does nothing.
+    /// It affects performance only (not correctness).
+    virtual void resize(size_t /*n*/) {}
+
     /// Size of column data in memory (may be approximate) - for profiling. Zero, if could not be determined.
     virtual size_t byte_size() const = 0;
 
