@@ -18,10 +18,10 @@
 #include "vec/olap/block_reader.h"
 
 #include <parallel_hashmap/phmap.h>
+
 #include <boost/algorithm/string/case_conv.hpp>
 #include <unordered_set>
 
-#include "vec/olap/vcollect_iterator.h"
 #include "olap/row_block.h"
 #include "olap/rowset/beta_rowset_reader.h"
 #include "olap/schema.h"
@@ -29,6 +29,7 @@
 #include "runtime/mem_pool.h"
 #include "runtime/mem_tracker.h"
 #include "util/date_func.h"
+#include "vec/olap/vcollect_iterator.h"
 
 using std::nothrow;
 using std::set;
@@ -38,8 +39,18 @@ namespace doris::vectorized {
 
 BlockReader::BlockReader() : _collect_iter(new VCollectIterator()) {}
 
+BlockReader::~BlockReader() {
+    for (int i = 0; i < _agg_functions.size(); ++i) {
+        AggregateFunctionPtr function = _agg_functions[i];
+        AggregateDataPtr place = _agg_places[i];
+        function->destroy(place);
+        delete[] place;
+    }
+}
+
 OLAPStatus BlockReader::_init_collect_iter(const ReaderParams& read_params,
-        std::vector<RowsetReaderSharedPtr>* valid_rs_readers) {
+                                           std::vector<RowsetReaderSharedPtr>* valid_rs_readers,
+                                           bool is_agg) {
     _collect_iter->init(this);
     std::vector<RowsetReaderSharedPtr> rs_readers;
     auto res = _capture_rs_readers(read_params, &rs_readers);
@@ -73,20 +84,62 @@ OLAPStatus BlockReader::_init_collect_iter(const ReaderParams& read_params,
             _unique_key_tmp_block = _next_row.first->create_same_struct_block(1);
             _unique_row_columns = _unique_key_tmp_block->mutate_columns();
             _replace_data_in_column();
+
+            if (is_agg) {
+                for (auto idx : _agg_columns_idx) {
+                    FieldAggregationMethod agg_method =
+                            tablet()->tablet_schema().column(idx).aggregation();
+                    std::string agg_name = TabletColumn::get_string_by_aggregation_type(agg_method);
+                    std::transform(agg_name.begin(), agg_name.end(), agg_name.begin(),
+                                   [](unsigned char c) { return std::tolower(c); });
+
+                    if (agg_name == "sum") {
+                        agg_name += "_pure";
+                    }
+
+                    LOG(INFO) << "MYTEST" << idx << " " << _unique_key_tmp_block->columns();
+
+                    DataTypes argument_types;
+                    argument_types.push_back(_unique_key_tmp_block->get_data_types()[idx]);
+                    Array params;
+
+                    AggregateFunctionPtr function = AggregateFunctionSimpleFactory::instance().get(
+                            agg_name, argument_types, params,
+                            _unique_key_tmp_block->get_data_types()[idx]->is_nullable());
+                    _agg_functions.push_back(function);
+
+                    AggregateDataPtr place = new char[function->size_of_data()];
+                    function->create(place);
+                    _agg_places.push_back(place);
+                }
+
+                _update_value_in_column();
+            }
         }
     }
-
     return OLAP_SUCCESS;
 }
 
 OLAPStatus BlockReader::init(const ReaderParams& read_params) {
     Reader::init(read_params);
 
-    auto return_column_size = read_params.origin_return_columns->size() - (_sequence_col_idx != -1 ? 1 : 0);
+    _key_num = tablet()->num_key_columns();
+
+    auto return_column_size =
+            read_params.origin_return_columns->size() - (_sequence_col_idx != -1 ? 1 : 0);
     for (int i = 0; i < return_column_size; ++i) {
         auto cid = read_params.origin_return_columns->at(i);
-        for (int j = 0; j < read_params.return_columns.size() ; ++j) {
+        for (int j = 0; j < read_params.return_columns.size(); ++j) {
             if (read_params.return_columns[j] == cid) {
+                if (j < _key_num || _tablet->keys_type() != AGG_KEYS) {
+                    _normal_columns_idx.emplace_back(i);
+                    LOG(INFO) << "MYTEST "
+                              << "normal " << i;
+                } else {
+                    _agg_columns_idx.emplace_back(i);
+                    LOG(INFO) << "MYTEST "
+                              << "agg " << i;
+                }
                 _return_columns_loc.emplace_back(j);
                 break;
             }
@@ -96,15 +149,17 @@ OLAPStatus BlockReader::init(const ReaderParams& read_params) {
     _need_compare = !read_params.single_version;
 
     std::vector<RowsetReaderSharedPtr> rs_readers;
-    auto status = _init_collect_iter(read_params, &rs_readers);
-    if (status != OLAP_SUCCESS) { return status; }
+    auto status = _init_collect_iter(read_params, &rs_readers, _tablet->keys_type() == AGG_KEYS);
+    if (status != OLAP_SUCCESS) {
+        return status;
+    }
 
-//  TODO: Support the logic in the future
-//    if (_optimize_for_single_rowset(rs_readers)) {
-//        _next_block_func = _tablet->keys_type() == AGG_KEYS ? &BlockReader::_direct_agg_key_next_block
-//                                                          : &BlockReader::_direct_next_block;
-//        return OLAP_SUCCESS;
-//    }
+    //  TODO: Support the logic in the future
+    //    if (_optimize_for_single_rowset(rs_readers)) {
+    //        _next_block_func = _tablet->keys_type() == AGG_KEYS ? &BlockReader::_direct_agg_key_next_block
+    //                                                          : &BlockReader::_direct_next_block;
+    //        return OLAP_SUCCESS;
+    //    }
 
     switch (_tablet->keys_type()) {
     case KeysType::DUP_KEYS:
@@ -125,7 +180,7 @@ OLAPStatus BlockReader::init(const ReaderParams& read_params) {
 }
 
 OLAPStatus BlockReader::_direct_next_block(Block* block, MemPool* mem_pool, ObjectPool* agg_pool,
-                                    bool* eof) {
+                                           bool* eof) {
     auto res = _collect_iter->next(block);
     if (UNLIKELY(res != OLAP_SUCCESS && res != OLAP_ERR_DATA_EOF)) {
         return res;
@@ -135,17 +190,59 @@ OLAPStatus BlockReader::_direct_next_block(Block* block, MemPool* mem_pool, Obje
 }
 
 OLAPStatus BlockReader::_direct_agg_key_next_block(Block* block, MemPool* mem_pool,
-                                            ObjectPool* agg_pool, bool* eof) {
+                                                   ObjectPool* agg_pool, bool* eof) {
+    auto res = _collect_iter->next(block);
+    if (UNLIKELY(res != OLAP_SUCCESS && res != OLAP_ERR_DATA_EOF)) {
+        return res;
+    }
+    *eof = res == OLAP_ERR_DATA_EOF;
     return OLAP_SUCCESS;
 }
 
 OLAPStatus BlockReader::_agg_key_next_block(Block* block, MemPool* mem_pool, ObjectPool* agg_pool,
-                                     bool* eof) {
+                                            bool* eof) {
+    if (UNLIKELY(_eof)) {
+        *eof = true;
+        return OLAP_SUCCESS;
+    }
+
+    int64_t merged_count = 0;
+    auto target_block_row = 0;
+    auto target_columns = block->mutate_columns();
+    do {
+        auto res = _collect_iter->next(&_next_row.first, &_next_row.second);
+        if (UNLIKELY(res == OLAP_ERR_DATA_EOF)) {
+            _insert_tmp_block_to(target_columns);
+            *eof = true;
+            break;
+        }
+
+        if (UNLIKELY(res != OLAP_SUCCESS)) {
+            LOG(WARNING) << "next failed: " << res;
+            return res;
+        }
+
+        auto cmp_res =
+                _need_compare && _unique_key_tmp_block->compare_at(0, _next_row.second, _key_num,
+                                                                   *_next_row.first, -1) == 0;
+
+        if (cmp_res) {
+            merged_count++;
+        } else {
+            _insert_tmp_block_to(target_columns);
+            target_block_row++;
+            _replace_data_in_column();
+        }
+        _update_value_in_column();
+
+    } while (target_block_row < _batch_size);
+
+    _merged_rows += merged_count;
     return OLAP_SUCCESS;
 }
 
 OLAPStatus BlockReader::_unique_key_next_block(Block* block, MemPool* mem_pool,
-                                        ObjectPool* agg_pool, bool* eof) {
+                                               ObjectPool* agg_pool, bool* eof) {
     if (UNLIKELY(_eof)) {
         *eof = true;
         return OLAP_SUCCESS;
@@ -170,8 +267,10 @@ OLAPStatus BlockReader::_unique_key_next_block(Block* block, MemPool* mem_pool,
             return res;
         }
 
-        auto cmp_res = _need_compare && _unique_key_tmp_block->compare_at(0, _next_row.second, tablet()->num_key_columns(),
-                *_next_row.first, -1) == 0;
+        auto cmp_res =
+                _need_compare && _unique_key_tmp_block->compare_at(0, _next_row.second, _key_num,
+                                                                   *_next_row.first, -1) == 0;
+
         if (cmp_res) {
             merged_count++;
         } else {
@@ -186,16 +285,39 @@ OLAPStatus BlockReader::_unique_key_next_block(Block* block, MemPool* mem_pool,
 }
 
 void BlockReader::_insert_tmp_block_to(doris::vectorized::MutableColumns& columns) {
-    for (int i = 0; i < _return_columns_loc.size(); i++) {
-        columns[i]->insert_from(*_unique_row_columns[_return_columns_loc[i]], 0);
+    for (auto idx : _normal_columns_idx) {
+        columns[idx]->insert_from(*_unique_row_columns[_return_columns_loc[idx]], 0);
+    }
+
+    for (int i = 0; i < _agg_columns_idx.size(); i++) {
+        AggregateFunctionPtr function = _agg_functions[i];
+        AggregateDataPtr place = _agg_places[i];
+
+        function->insert_result_into(place, *columns[_agg_columns_idx[i]]);
+
+        // reset aggregate data
+        function->destroy(place);
+        function->create(place);
+    }
+}
+
+void BlockReader::_update_value_in_column() {
+    for (int i = 0; i < _agg_columns_idx.size(); i++) {
+        AggregateFunctionPtr function = _agg_functions[i];
+        AggregateDataPtr place = _agg_places[i];
+        auto column_ptr = _next_row.first->get_by_position(_agg_columns_idx[i])
+                                  .column->assume_mutable()
+                                  .get();
+
+        function->add(place, const_cast<const IColumn**>(&column_ptr), _next_row.second, nullptr);
     }
 }
 
 void BlockReader::_replace_data_in_column() {
-    for (int i = 0; i < _unique_row_columns.size(); ++i) {
-        _unique_row_columns[i]->replace_column_data(*(_next_row.first)->get_by_position(i).column,
-                _next_row.second);
+    for (auto idx : _normal_columns_idx) {
+        _unique_row_columns[idx]->replace_column_data(
+                *(_next_row.first)->get_by_position(idx).column, _next_row.second);
     }
 }
 
-} // namespace doris
+} // namespace doris::vectorized

@@ -77,7 +77,8 @@ private:
     // if row cursors equal, compare data version.
     class LevelIteratorComparator {
     public:
-        LevelIteratorComparator(const bool reverse = false, int sequence = -1) : _reverse(reverse), _sequence(sequence) {}
+        LevelIteratorComparator(const bool reverse = false, int sequence = -1)
+                : _reverse(reverse), _sequence(sequence) {}
 
         bool operator()(const LevelIterator* lhs, const LevelIterator* rhs);
 
@@ -119,7 +120,8 @@ private:
     // Iterate from LevelIterators (maybe Level0Iterators or Level1Iterator or mixed)
     class Level1Iterator : public LevelIterator {
     public:
-        Level1Iterator(const std::list<LevelIterator*>& children, Reader* reader, bool merge, bool reverse);
+        Level1Iterator(const std::list<LevelIterator*>& children, Reader* reader, bool merge,
+                       bool reverse);
 
         OLAPStatus init() override;
 
@@ -132,7 +134,6 @@ private:
         OLAPStatus next(Block* block) override;
 
         const TabletSchema& tablet_schema() const override;
-
 
         ~Level1Iterator();
 

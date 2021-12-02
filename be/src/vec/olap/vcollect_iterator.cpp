@@ -50,7 +50,8 @@ void VCollectIterator::build_heap(std::vector<RowsetReaderSharedPtr>& rs_readers
         return;
     } else if (_merge) {
         DCHECK(!rs_readers.empty());
-        for (auto [c_iter, r_iter] = std::pair{_children.begin(), rs_readers.begin()}; c_iter != _children.end();) {
+        for (auto [c_iter, r_iter] = std::pair {_children.begin(), rs_readers.begin()};
+             c_iter != _children.end();) {
             if ((*c_iter)->init() != OLAP_SUCCESS) {
                 c_iter = _children.erase(c_iter);
                 r_iter = rs_readers.erase(r_iter);
@@ -119,8 +120,7 @@ bool VCollectIterator::LevelIteratorComparator::operator()(const LevelIterator* 
 
     if (_sequence != -1) {
         cmp_res = lhs_block->get_by_position(_sequence).column->compare_at(
-                                  lhs_id, rhs_id,
-                                  *(rhs_block->get_by_position(_sequence).column), -1);
+                lhs_id, rhs_id, *(rhs_block->get_by_position(_sequence).column), -1);
         if (cmp_res != 0) {
             return cmp_res < 0;
         }
