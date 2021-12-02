@@ -183,10 +183,10 @@ OLAPStatus VCollectIterator::Level0Iterator::_refresh_current_row() {
         if (_block.rows() != 0 && _current_row < _block.rows()) {
             return OLAP_SUCCESS;
         } else {
+            _current_row = 0;
             _block.clear_column_data();
             auto res = _rs_reader->next_block(&_block);
             if (res != OLAP_SUCCESS) {
-                _current_row = 0;
                 return res;
             }
         }
