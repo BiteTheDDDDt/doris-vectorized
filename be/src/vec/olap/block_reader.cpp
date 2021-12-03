@@ -97,8 +97,6 @@ OLAPStatus BlockReader::_init_collect_iter(const ReaderParams& read_params,
                         agg_name += "_pure";
                     }
 
-                    LOG(INFO) << "MYTEST" << idx << " " << _unique_key_tmp_block->columns();
-
                     DataTypes argument_types;
                     argument_types.push_back(_unique_key_tmp_block->get_data_types()[idx]);
                     Array params;
@@ -133,12 +131,8 @@ OLAPStatus BlockReader::init(const ReaderParams& read_params) {
             if (read_params.return_columns[j] == cid) {
                 if (j < _key_num || _tablet->keys_type() != AGG_KEYS) {
                     _normal_columns_idx.emplace_back(i);
-                    LOG(INFO) << "MYTEST "
-                              << "normal " << i;
                 } else {
                     _agg_columns_idx.emplace_back(i);
-                    LOG(INFO) << "MYTEST "
-                              << "agg " << i;
                 }
                 _return_columns_loc.emplace_back(j);
                 break;
@@ -181,11 +175,6 @@ OLAPStatus BlockReader::init(const ReaderParams& read_params) {
 
 OLAPStatus BlockReader::_direct_next_block(Block* block, MemPool* mem_pool, ObjectPool* agg_pool,
                                            bool* eof) {
-    auto res = _collect_iter->next(block);
-    if (UNLIKELY(res != OLAP_SUCCESS && res != OLAP_ERR_DATA_EOF)) {
-        return res;
-    }
-    *eof = res == OLAP_ERR_DATA_EOF;
     return OLAP_SUCCESS;
 }
 
