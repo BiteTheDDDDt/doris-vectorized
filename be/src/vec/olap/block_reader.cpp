@@ -83,6 +83,10 @@ OLAPStatus BlockReader::_init_collect_iter(const ReaderParams& read_params,
         if (!_eof) {
             _unique_key_tmp_block = _next_row.first->create_same_struct_block(1);
             _unique_row_columns = _unique_key_tmp_block->mutate_columns();
+
+            _stored_value_block = _next_row.first->create_same_struct_block(_batch_size);
+            _stored_value_columns = _stored_value_block->mutate_columns();
+
             _replace_data_in_column();
 
             if (is_agg) {
@@ -105,13 +109,13 @@ OLAPStatus BlockReader::_init_collect_iter(const ReaderParams& read_params,
                             agg_name, argument_types, params,
                             _unique_key_tmp_block->get_data_types()[idx]->is_nullable());
                     _agg_functions.push_back(function);
-
+                    // TODO: maybe allocate once?
                     AggregateDataPtr place = new char[function->size_of_data()];
                     function->create(place);
                     _agg_places.push_back(place);
                 }
 
-                _update_value_in_column();
+                _append_agg_data_in_column();
             }
         }
     }
@@ -201,6 +205,7 @@ OLAPStatus BlockReader::_agg_key_next_block(Block* block, MemPool* mem_pool, Obj
     do {
         auto res = _collect_iter->next(&_next_row.first, &_next_row.second);
         if (UNLIKELY(res == OLAP_ERR_DATA_EOF)) {
+            _update_value_in_column();
             _insert_tmp_block_to(target_columns);
             *eof = true;
             break;
@@ -218,11 +223,12 @@ OLAPStatus BlockReader::_agg_key_next_block(Block* block, MemPool* mem_pool, Obj
         if (cmp_res) {
             merged_count++;
         } else {
+            _update_value_in_column();
             _insert_tmp_block_to(target_columns);
             target_block_row++;
             _replace_data_in_column();
         }
-        _update_value_in_column();
+        _append_agg_data_in_column();
 
     } while (target_block_row < _batch_size);
 
@@ -285,7 +291,7 @@ void BlockReader::_insert_tmp_block_to(doris::vectorized::MutableColumns& column
         function->insert_result_into(place, *columns[_agg_columns_idx[i]]);
 
         // reset aggregate data
-        function->destroy(place);
+        //function->destroy(place);
         function->create(place);
     }
 }
@@ -294,11 +300,13 @@ void BlockReader::_update_value_in_column() {
     for (int i = 0; i < _agg_columns_idx.size(); i++) {
         AggregateFunctionPtr function = _agg_functions[i];
         AggregateDataPtr place = _agg_places[i];
-        auto column_ptr = _next_row.first->get_by_position(_agg_columns_idx[i])
-                                  .column->assume_mutable()
-                                  .get();
+        auto column_ptr = _stored_value_columns[_agg_columns_idx[i]].get();
 
-        function->add(place, const_cast<const IColumn**>(&column_ptr), _next_row.second, nullptr);
+        for (int j = 0; j < column_ptr->size(); j++) {
+            function->add(place, const_cast<const IColumn**>(&column_ptr), j, nullptr);
+        }
+
+        column_ptr->clear();
     }
 }
 
@@ -306,6 +314,18 @@ void BlockReader::_replace_data_in_column() {
     for (auto idx : _normal_columns_idx) {
         _unique_row_columns[idx]->replace_column_data(
                 *(_next_row.first)->get_by_position(idx).column, _next_row.second);
+    }
+}
+
+void BlockReader::_append_agg_data_in_column() {
+    for (auto idx : _agg_columns_idx) {
+        _stored_value_columns[idx]->insert_from(*(_next_row.first)->get_by_position(idx).column,
+                                                _next_row.second);
+    }
+
+    if (_agg_columns_idx.size() &&
+        _stored_value_columns[_agg_columns_idx[0]]->size() == _batch_size) {
+        _update_value_in_column();
     }
 }
 

@@ -103,6 +103,8 @@ private:
 
     void _update_value_in_column();
 
+    void _append_agg_data_in_column();
+
 private:
     std::unique_ptr<VCollectIterator> _collect_iter;
 
@@ -116,6 +118,10 @@ private:
     std::pair<const Block*, uint32_t> _next_row {nullptr, 0};
     std::unique_ptr<Block> _unique_key_tmp_block;
     MutableColumns _unique_row_columns;
+
+    std::unique_ptr<Block> _stored_value_block;
+    MutableColumns _stored_value_columns;
+
     int _batch_size;
     int _key_num; // number of key columns
     bool _need_compare = true;
