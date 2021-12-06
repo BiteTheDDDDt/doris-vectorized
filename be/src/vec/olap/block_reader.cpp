@@ -143,6 +143,7 @@ OLAPStatus BlockReader::init(const ReaderParams& read_params) {
             }
         }
     }
+
     _batch_size = read_params.runtime_state->batch_size();
     _need_compare = !read_params.single_version;
 
@@ -302,12 +303,11 @@ void BlockReader::_update_value_in_column() {
         AggregateDataPtr place = _agg_places[i];
         auto column_ptr = _stored_value_columns[_agg_columns_idx[i]].get();
 
-        for (int j = 0; j < column_ptr->size(); j++) {
-            function->add(place, const_cast<const IColumn**>(&column_ptr), j, nullptr);
-        }
-
-        column_ptr->clear();
+        function->add_batch_single_place(_agg_data_num, place,
+                                         const_cast<const IColumn**>(&column_ptr), nullptr);
     }
+
+    _agg_data_num = 0;
 }
 
 void BlockReader::_replace_data_in_column() {
@@ -319,12 +319,12 @@ void BlockReader::_replace_data_in_column() {
 
 void BlockReader::_append_agg_data_in_column() {
     for (auto idx : _agg_columns_idx) {
-        _stored_value_columns[idx]->insert_from(*(_next_row.first)->get_by_position(idx).column,
-                                                _next_row.second);
+        _stored_value_columns[idx]->replace_column_data(
+                *(_next_row.first)->get_by_position(idx).column, _next_row.second, _agg_data_num);
     }
+    _agg_data_num++;
 
-    if (_agg_columns_idx.size() &&
-        _stored_value_columns[_agg_columns_idx[0]]->size() == _batch_size) {
+    if (_agg_data_num == _batch_size) {
         _update_value_in_column();
     }
 }

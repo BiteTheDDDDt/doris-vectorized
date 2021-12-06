@@ -55,6 +55,8 @@ class RuntimeState;
 namespace vectorized {
 class BlockReader final : public Reader {
 public:
+    using TempRowRef = std::pair<const Block*, uint32_t>;
+
     BlockReader();
 
     ~BlockReader();
@@ -115,10 +117,12 @@ private:
     std::vector<uint32_t> _agg_columns_idx;
     std::vector<uint32_t> _return_columns_loc;
 
-    std::pair<const Block*, uint32_t> _next_row {nullptr, 0};
+    TempRowRef _next_row {nullptr, 0};
+    
     std::unique_ptr<Block> _unique_key_tmp_block;
     MutableColumns _unique_row_columns;
 
+    int _agg_data_num = 0; // number of stored agg data
     std::unique_ptr<Block> _stored_value_block;
     MutableColumns _stored_value_columns;
 

@@ -385,8 +385,8 @@ public:
       */
     String dump_structure() const;
 
-    // Only use in column have only one row, use in unique key replace only
-    virtual void replace_column_data(const IColumn&, size_t row) = 0;
+    // should replace according 0,1,2... ,size,0,1,2...
+    virtual void replace_column_data(const IColumn&, size_t row, size_t self_row = 0) = 0;
 
 protected:
     /// Template is to devirtualize calls to insert_from method.
