@@ -75,7 +75,12 @@ private:
 
         const TabletSchema& tablet_schema() const { return _schema; };
 
+        bool need_skip() const { return _skip_row; }
+
+        void set_need_skip(bool skip) { _skip_row = skip; }
+
         const TabletSchema& _schema;
+        bool _skip_row = false;
     };
 
     // Compare row cursors between multiple merge elements,
@@ -85,7 +90,7 @@ private:
         LevelIteratorComparator(const bool reverse = false, int sequence = -1)
                 : _reverse(reverse), _sequence(sequence) {}
 
-        bool operator()(const LevelIterator* lhs, const LevelIterator* rhs);
+        bool operator()(LevelIterator* lhs, LevelIterator* rhs);
 
     private:
         bool _reverse;

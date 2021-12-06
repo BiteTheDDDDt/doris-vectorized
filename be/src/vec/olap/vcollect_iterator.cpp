@@ -103,8 +103,8 @@ void VCollectIterator::build_heap(std::vector<RowsetReaderSharedPtr>& rs_readers
     _children.clear();
 }
 
-bool VCollectIterator::LevelIteratorComparator::operator()(const LevelIterator* lhs,
-                                                           const LevelIterator* rhs) {
+bool VCollectIterator::LevelIteratorComparator::operator()(LevelIterator* lhs,
+                                                           LevelIterator* rhs) {
     const Block* lhs_block;
     const Block* rhs_block;
     uint32_t lhs_id;
@@ -121,6 +121,7 @@ bool VCollectIterator::LevelIteratorComparator::operator()(const LevelIterator* 
         cmp_res = lhs_block->get_by_position(_sequence).column->compare_at(
                 lhs_id, rhs_id, *(rhs_block->get_by_position(_sequence).column), -1);
         if (cmp_res != 0) {
+            cmp_res < 0 ? lhs->set_need_skip(true) : rhs->set_need_skip(true);
             return cmp_res < 0;
         }
     }
@@ -129,7 +130,9 @@ bool VCollectIterator::LevelIteratorComparator::operator()(const LevelIterator* 
     // for UNIQUE_KEYS just read the highest version and no need agg_update.
     // for AGG_KEYS if a version is deleted, the lower version no need to agg_update
     if (_reverse) {
-        return lhs->version() < rhs->version();
+        bool lower = lhs->version() < rhs->version();
+        lower ? lhs->set_need_skip(true) : rhs->set_need_skip(true);
+        return lower;
     }
     return lhs->version() > rhs->version();
 }
@@ -313,6 +316,13 @@ OLAPStatus VCollectIterator::Level1Iterator::_merge_next(const Block** block, ui
         LOG(WARNING) << "failed to get next from child, res=" << res;
         return res;
     }
+
+    if (_cur_child->need_skip()) {
+        _reader->_merged_rows++;
+        _cur_child->set_need_skip(false);
+        return _merge_next(block, row);
+    }
+
     return _cur_child->current_row(block, row);
 }
 

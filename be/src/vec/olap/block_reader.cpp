@@ -145,7 +145,6 @@ OLAPStatus BlockReader::init(const ReaderParams& read_params) {
     }
 
     _batch_size = read_params.runtime_state->batch_size();
-    _need_compare = !read_params.single_version;
 
     std::vector<RowsetReaderSharedPtr> rs_readers;
     auto status = _init_collect_iter(read_params, &rs_readers, _tablet->keys_type() == AGG_KEYS);
@@ -248,12 +247,14 @@ OLAPStatus BlockReader::_unique_key_next_block(Block* block, MemPool* mem_pool,
     auto target_block_row = 0;
     auto target_columns = block->mutate_columns();
     do {
+        _insert_data(target_columns);
+        target_block_row++;
+
         // the version is in reverse order, the first row is the highest version,
         // in UNIQUE_KEY highest version is the final result, there is no need to
         // merge the lower versions
         auto res = _collect_iter->next(&_next_row.first, &_next_row.second);
         if (UNLIKELY(res == OLAP_ERR_DATA_EOF)) {
-            _insert_tmp_block_to(target_columns);
             *eof = true;
             break;
         }
@@ -263,17 +264,6 @@ OLAPStatus BlockReader::_unique_key_next_block(Block* block, MemPool* mem_pool,
             return res;
         }
 
-        auto cmp_res =
-                _need_compare && _unique_key_tmp_block->compare_at(0, _next_row.second, _key_num,
-                                                                   *_next_row.first, -1) == 0;
-
-        if (cmp_res) {
-            merged_count++;
-        } else {
-            _insert_tmp_block_to(target_columns);
-            target_block_row++;
-            _replace_data_in_column();
-        }
     } while (target_block_row < _batch_size);
 
     _merged_rows += merged_count;
@@ -349,6 +339,12 @@ void BlockReader::_append_agg_data_in_column() {
                         _next_row.first->get_by_position(_agg_columns_idx[i]).column_raw);
             }
         }
+    }
+}
+void BlockReader::_insert_data(doris::vectorized::MutableColumns& columns) {
+    for (int i = 0; i < _return_columns_loc.size(); i++) {
+        columns[i]->insert_from(*(_next_row.first)->get_by_position(_return_columns_loc[i]).column,
+                                _next_row.second);
     }
 }
 

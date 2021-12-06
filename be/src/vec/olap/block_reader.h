@@ -99,9 +99,7 @@ private:
                                   std::vector<RowsetReaderSharedPtr>* valid_rs_readers,
                                   bool is_agg);
 
-    void _insert_tmp_block_to(MutableColumns& columns);
-
-    void _replace_data_in_column();
+    void _insert_data(MutableColumns& columns);
 
     void _update_value_in_column();
 
@@ -119,7 +117,7 @@ private:
 
     TempRowRef _next_row {nullptr, 0};
     std::vector<TempRowRef> _stored_row_ref;
-    
+
     std::unique_ptr<Block> _unique_key_tmp_block;
     MutableColumns _unique_row_columns;
 
