@@ -19,11 +19,11 @@
 
 #include "olap/olap_define.h"
 #include "olap/rowset/rowset_reader.h"
+#include "olap/reader.h"
 #include "vec/core/block.h"
 
 namespace doris {
 
-class Reader;
 class TabletSchema;
 
 namespace vectorized {
@@ -59,6 +59,8 @@ private:
     // then merged with other rowset readers.
     class LevelIterator {
     public:
+        LevelIterator(Reader* reader): _schema(reader->tablet()->tablet_schema()) {};
+
         virtual OLAPStatus init() = 0;
 
         virtual int64_t version() const = 0;
@@ -69,8 +71,22 @@ private:
 
         virtual OLAPStatus next(Block* block) = 0;
 
-        virtual ~LevelIterator() = 0;
-        virtual const TabletSchema& tablet_schema() const = 0;
+        virtual ~LevelIterator() = default;
+
+        const TabletSchema& tablet_schema() const {
+            return _schema;
+        };
+
+        bool need_skip() const {
+            return _skip_row;
+        }
+
+        void set_need_skip(bool skip) {
+            _skip_row = skip;
+        }
+
+        const TabletSchema& _schema;
+        bool _skip_row = false;
     };
 
     // Compare row cursors between multiple merge elements,
@@ -79,7 +95,7 @@ private:
     public:
         LevelIteratorComparator(const bool reverse = false, int sequence = -1) : _reverse(reverse), _sequence(sequence) {}
 
-        bool operator()(const LevelIterator* lhs, const LevelIterator* rhs);
+        bool operator()(LevelIterator* lhs, LevelIterator* rhs);
 
     private:
         bool _reverse;
@@ -105,8 +121,6 @@ private:
 
         OLAPStatus next(Block* block) override;
 
-        const TabletSchema& tablet_schema() const override;
-
     private:
         OLAPStatus _refresh_current_row();
 
@@ -130,9 +144,6 @@ private:
         OLAPStatus next(const Block** block, uint32_t* row) override;
 
         OLAPStatus next(Block* block) override;
-
-        const TabletSchema& tablet_schema() const override;
-
 
         ~Level1Iterator();
 
