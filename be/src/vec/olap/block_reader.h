@@ -99,9 +99,13 @@ private:
                                   std::vector<RowsetReaderSharedPtr>* valid_rs_readers,
                                   bool is_agg);
 
+    void _insert_tmp_block_to(MutableColumns& columns);
+
     void _insert_data(MutableColumns& columns);
 
     void _update_value_in_column();
+
+    void _replace_data_in_column();
 
     void _append_agg_data_in_column();
 
