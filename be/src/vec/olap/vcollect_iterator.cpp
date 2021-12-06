@@ -17,7 +17,6 @@
 
 #include "vec/olap/vcollect_iterator.h"
 
-#include "olap/reader.h"
 #include "olap/rowset/beta_rowset_reader.h"
 
 namespace doris {
@@ -159,9 +158,9 @@ OLAPStatus VCollectIterator::next(Block* block) {
 }
 
 VCollectIterator::Level0Iterator::Level0Iterator(RowsetReaderSharedPtr rs_reader, Reader* reader)
-        : _rs_reader(rs_reader), _reader(reader), _current_row(0) {
+        : LevelIterator(reader), _rs_reader(rs_reader), _reader(reader), _current_row(0) {
     DCHECK_EQ(RowsetReader::BETA, rs_reader->type());
-    _block = _reader->tablet()->tablet_schema().create_block(_reader->_return_columns);
+    _block = _schema.create_block(_reader->_return_columns);
 }
 
 OLAPStatus VCollectIterator::Level0Iterator::init() {
@@ -206,16 +205,10 @@ OLAPStatus VCollectIterator::Level0Iterator::next(Block* block) {
     return _rs_reader->next_block(block);
 }
 
-const TabletSchema& VCollectIterator::Level0Iterator::tablet_schema() const {
-    return _reader->tablet()->tablet_schema();
-}
 
 VCollectIterator::Level1Iterator::Level1Iterator(
-        const std::list<VCollectIterator::LevelIterator*>& children, Reader* reader, bool merge,
-        bool reverse)
-        : _children(children), _reader(reader), _merge(merge), _reverse(reverse) {}
-
-VCollectIterator::LevelIterator::~LevelIterator() {}
+        const std::list<VCollectIterator::LevelIterator*>& children, Reader* reader, bool merge, bool reverse)
+        : LevelIterator(reader), _children(children), _reader(reader), _merge(merge), _reverse(reverse) {}
 
 VCollectIterator::Level1Iterator::~Level1Iterator() {
     for (auto child : _children) {
@@ -365,10 +358,6 @@ OLAPStatus VCollectIterator::Level1Iterator::_normal_next(Block* block) {
         LOG(WARNING) << "failed to get next from child, res=" << res;
         return res;
     }
-}
-
-const TabletSchema& VCollectIterator::Level1Iterator::tablet_schema() const {
-    return _reader->tablet()->tablet_schema();
 }
 
 } // namespace vectorized
