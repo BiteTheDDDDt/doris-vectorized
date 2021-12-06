@@ -118,6 +118,7 @@ private:
     std::vector<uint32_t> _return_columns_loc;
 
     TempRowRef _next_row {nullptr, 0};
+    std::vector<TempRowRef> _stored_row_ref;
     
     std::unique_ptr<Block> _unique_key_tmp_block;
     MutableColumns _unique_row_columns;

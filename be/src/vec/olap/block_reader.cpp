@@ -292,22 +292,40 @@ void BlockReader::_insert_tmp_block_to(doris::vectorized::MutableColumns& column
         function->insert_result_into(place, *columns[_agg_columns_idx[i]]);
 
         // reset aggregate data
-        //function->destroy(place);
         function->create(place);
     }
 }
 
 void BlockReader::_update_value_in_column() {
+    if (!_stored_row_ref.size()) {
+        return;
+    }
+
     for (int i = 0; i < _agg_columns_idx.size(); i++) {
         AggregateFunctionPtr function = _agg_functions[i];
         AggregateDataPtr place = _agg_places[i];
-        auto column_ptr = _stored_value_columns[_agg_columns_idx[i]].get();
 
-        function->add_batch_single_place(_agg_data_num, place,
-                                         const_cast<const IColumn**>(&column_ptr), nullptr);
+        int begin = 0;
+        int end = 1;
+
+        auto add_batch = [&]() {
+            auto column_ptr =
+                    _stored_row_ref[begin].first->get_by_position(_agg_columns_idx[i]).column_raw;
+            function->add_batch_range(_stored_row_ref[begin].second,
+                                      _stored_row_ref[end - 1].second, place,
+                                      const_cast<const IColumn**>(&column_ptr), nullptr);
+        };
+
+        for (; end < _stored_row_ref.size(); end++) {
+            if (_stored_row_ref[end].first != _stored_row_ref[begin].first) {
+                add_batch();
+                begin = end;
+            }
+        }
+        add_batch();
     }
 
-    _agg_data_num = 0;
+    _stored_row_ref.clear();
 }
 
 void BlockReader::_replace_data_in_column() {
@@ -318,14 +336,19 @@ void BlockReader::_replace_data_in_column() {
 }
 
 void BlockReader::_append_agg_data_in_column() {
-    for (auto idx : _agg_columns_idx) {
-        _stored_value_columns[idx]->replace_column_data(
-                *(_next_row.first)->get_by_position(idx).column, _next_row.second, _agg_data_num);
-    }
-    _agg_data_num++;
+    _stored_row_ref.emplace_back(_next_row);
 
-    if (_agg_data_num == _batch_size) {
+    bool is_last = _next_row.first->rows() == _next_row.second + 1;
+    if (_stored_row_ref.size() == _batch_size || is_last) {
         _update_value_in_column();
+
+        if (is_last) {
+            for (int i = 0; i < _agg_columns_idx.size(); i++) {
+                AggregateFunctionPtr function = _agg_functions[i];
+                function->erase_has_null(
+                        _next_row.first->get_by_position(_agg_columns_idx[i]).column_raw);
+            }
+        }
     }
 }
 
