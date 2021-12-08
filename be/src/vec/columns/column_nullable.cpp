@@ -188,12 +188,9 @@ int ColumnNullable::compare_at(size_t n, size_t m, const IColumn& rhs_,
     /// ORDER BY construction.
     const ColumnNullable& nullable_rhs = assert_cast<const ColumnNullable&>(rhs_);
 
-    bool lval_is_null = is_null_at(n);
-    bool rval_is_null = nullable_rhs.is_null_at(m);
-
-    if (UNLIKELY(lval_is_null)) {
-        return rval_is_null ? 0 : null_direction_hint;
-    } else if (UNLIKELY(rval_is_null)) {
+    if (is_null_at(n)) {
+        return nullable_rhs.is_null_at(m) ? 0 : null_direction_hint;
+    } else if (nullable_rhs.is_null_at(m)) {
         return -null_direction_hint;
     }
 
