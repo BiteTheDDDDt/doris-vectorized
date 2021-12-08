@@ -157,7 +157,8 @@ public:
                                          nan_direction_hint);
     }
 
-    void get_permutation(bool reverse, size_t limit, int nan_direction_hint, IColumn::Permutation & res) const override;
+    void get_permutation(bool reverse, size_t limit, int nan_direction_hint,
+                         IColumn::Permutation& res) const override;
 
     void reserve(size_t n) override { data.reserve(n); }
 
@@ -229,11 +230,6 @@ public:
     const T& get_element(size_t n) const { return data[n]; }
 
     T& get_element(size_t n) { return data[n]; }
-
-    void replace_column_data(const IColumn& rhs, size_t row) override {
-        DCHECK(size() == 1);
-        data[0] = static_cast<const Self&>(rhs).data[row];
-    }
 
 protected:
     Container data;

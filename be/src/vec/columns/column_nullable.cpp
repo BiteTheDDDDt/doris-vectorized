@@ -30,6 +30,8 @@ ColumnNullable::ColumnNullable(MutableColumnPtr&& nested_column_, MutableColumnP
         : nested_column(std::move(nested_column_)), null_map(std::move(null_map_)) {
     /// ColumnNullable cannot have constant nested column. But constant argument could be passed. Materialize it.
     nested_column = get_nested_column().convert_to_full_column_if_const();
+    null_map_raw = &assert_cast<ColumnUInt8&>(*null_map).get_data();
+    nested_column_raw = nested_column->assume_mutable().get();
 
     if (!get_nested_column().can_be_inside_nullable()) {
         LOG(FATAL) << get_nested_column().get_name() << " cannot be inside Nullable column";
@@ -189,15 +191,14 @@ int ColumnNullable::compare_at(size_t n, size_t m, const IColumn& rhs_,
     bool lval_is_null = is_null_at(n);
     bool rval_is_null = nullable_rhs.is_null_at(m);
 
-    if (UNLIKELY(lval_is_null || rval_is_null)) {
-        if (lval_is_null && rval_is_null)
-            return 0;
-        else
-            return lval_is_null ? null_direction_hint : -null_direction_hint;
+    if (UNLIKELY(lval_is_null)) {
+        return rval_is_null ? 0 : null_direction_hint;
+    } else if (UNLIKELY(rval_is_null)) {
+        return -null_direction_hint;
     }
 
-    const IColumn& nested_rhs = nullable_rhs.get_nested_column();
-    return get_nested_column().compare_at(n, m, nested_rhs, null_direction_hint);
+    return get_nested_column_raw().compare_at(n, m, nullable_rhs.get_nested_column_raw(),
+                                              null_direction_hint);
 }
 
 void ColumnNullable::get_permutation(bool reverse, size_t limit, int null_direction_hint,

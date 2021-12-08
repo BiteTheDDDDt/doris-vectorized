@@ -27,7 +27,13 @@ ColumnWithTypeAndName ColumnWithTypeAndName::clone_empty() const {
 
     res.name = name;
     res.type = type;
-    if (column) res.column = column->clone_empty();
+    if (column) {
+        res.column = column->clone_empty();
+        res.column_raw = res.column->assume_mutable().get();
+    } else {
+        res.column = nullptr;
+        res.column_raw = nullptr;
+    }
 
     return res;
 }

@@ -31,16 +31,23 @@ namespace doris::vectorized {
 
 struct ColumnWithTypeAndName {
     ColumnPtr column;
+    IColumn* column_raw; // may invalidation when object be copyed
     DataTypePtr type;
     String name;
 
     ColumnWithTypeAndName() {}
     ColumnWithTypeAndName(const ColumnPtr& column_, const DataTypePtr& type_, const String& name_)
-            : column(column_), type(type_), name(name_) {}
+            : column(column_),
+              column_raw(column_ ? column->assume_mutable().get() : nullptr),
+              type(type_),
+              name(name_) {}
 
     /// Uses type->create_column() to create column
     ColumnWithTypeAndName(const DataTypePtr& type_, const String& name_)
-            : column(type_->create_column()), type(type_), name(name_) {}
+            : column(type_->create_column()),
+              column_raw(column ? column->assume_mutable().get() : nullptr),
+              type(type_),
+              name(name_) {}
 
     ColumnWithTypeAndName clone_empty() const;
     bool operator==(const ColumnWithTypeAndName& other) const;

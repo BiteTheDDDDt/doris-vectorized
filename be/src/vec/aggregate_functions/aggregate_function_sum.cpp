@@ -39,6 +39,17 @@ struct SumSimple {
 template <typename T>
 using AggregateFunctionSumSimple = typename SumSimple<T>::Function;
 
+// do not up level return type for agg reader
+template <typename T>
+struct SumSimplePure {
+    using ResultType = T;
+    using AggregateDataType = AggregateFunctionSumData<ResultType>;
+    using Function = AggregateFunctionSum<T, ResultType, AggregateDataType>;
+};
+
+template <typename T>
+using AggregateFunctionSumSimplePure = typename SumSimplePure<T>::Function;
+
 template <template <typename> class Function>
 AggregateFunctionPtr create_aggregate_function_sum(const std::string& name,
                                                    const DataTypes& argument_types,
@@ -65,6 +76,8 @@ AggregateFunctionPtr create_aggregate_function_sum(const std::string& name,
 
 void register_aggregate_function_sum(AggregateFunctionSimpleFactory& factory) {
     factory.register_function("sum", create_aggregate_function_sum<AggregateFunctionSumSimple>);
+    factory.register_function("sum_pure",
+                              create_aggregate_function_sum<AggregateFunctionSumSimplePure>);
 }
 
 } // namespace doris::vectorized

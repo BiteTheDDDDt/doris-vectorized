@@ -18,8 +18,8 @@
 #pragma once
 
 #include "olap/olap_define.h"
-#include "olap/rowset/rowset_reader.h"
 #include "olap/reader.h"
+#include "olap/rowset/rowset_reader.h"
 #include "vec/core/block.h"
 
 namespace doris {
@@ -27,6 +27,12 @@ namespace doris {
 class TabletSchema;
 
 namespace vectorized {
+
+struct IteratorRowRef {
+    const Block* block;
+    uint16_t row_pos;
+    bool is_same;
+};
 
 class VCollectIterator {
 public:
@@ -37,18 +43,18 @@ public:
 
     void build_heap(std::vector<RowsetReaderSharedPtr>& rs_readers);
     // Get top row of the heap, nullptr if reach end.
-    OLAPStatus current_row(const Block** block, uint32_t* row) const;
+    OLAPStatus current_row(IteratorRowRef* ref) const;
 
     // Read nest order row in Block.
     // Returns
     //      OLAP_SUCCESS when read successfully.
     //      OLAP_ERR_DATA_EOF and set *row to nullptr when EOF is reached.
     //      Others when error happens
-    OLAPStatus next(const Block** block, uint32_t* row);
+    OLAPStatus next(IteratorRowRef* ref);
 
     OLAPStatus next(Block* block);
 
-    bool is_merge() const { return _merge; };
+    bool is_merge() const { return _merge; }
 
 private:
     // This interface is the actual implementation of the new version of iterator.
@@ -59,47 +65,41 @@ private:
     // then merged with other rowset readers.
     class LevelIterator {
     public:
-        LevelIterator(Reader* reader): _schema(reader->tablet()->tablet_schema()) {};
+        LevelIterator(Reader* reader) : _schema(reader->tablet()->tablet_schema()) {};
 
         virtual OLAPStatus init() = 0;
 
         virtual int64_t version() const = 0;
 
-        virtual OLAPStatus current_row(const Block** block, uint32_t* row) const = 0;
+        virtual OLAPStatus current_row(IteratorRowRef* ref) const = 0;
 
-        virtual OLAPStatus next(const Block** block, uint32_t* row) = 0;
+        virtual OLAPStatus next(IteratorRowRef* ref) = 0;
 
         virtual OLAPStatus next(Block* block) = 0;
 
         virtual ~LevelIterator() = default;
 
-        const TabletSchema& tablet_schema() const {
-            return _schema;
-        };
+        const TabletSchema& tablet_schema() const { return _schema; };
 
-        bool need_skip() const {
-            return _skip_row;
-        }
-
-        void set_need_skip(bool skip) {
-            _skip_row = skip;
-        }
+        void set_same(bool same) { _is_same = same; }
 
         const TabletSchema& _schema;
-        bool _skip_row = false;
+
+        bool _is_same = false;
     };
 
     // Compare row cursors between multiple merge elements,
     // if row cursors equal, compare data version.
     class LevelIteratorComparator {
     public:
-        LevelIteratorComparator(const bool reverse = false, int sequence = -1) : _reverse(reverse), _sequence(sequence) {}
+        LevelIteratorComparator(int sequence = -1) : _sequence(sequence) {}
 
         bool operator()(LevelIterator* lhs, LevelIterator* rhs);
 
     private:
-        bool _reverse;
         int _sequence;
+        IteratorRowRef lhs_ref;
+        IteratorRowRef rhs_ref;
     };
 
     typedef std::priority_queue<LevelIterator*, std::vector<LevelIterator*>,
@@ -115,9 +115,9 @@ private:
 
         int64_t version() const override;
 
-        OLAPStatus current_row(const Block** block, uint32_t* row) const override;
+        OLAPStatus current_row(IteratorRowRef* ref) const override;
 
-        OLAPStatus next(const Block** block, uint32_t* row) override;
+        OLAPStatus next(IteratorRowRef* ref) override;
 
         OLAPStatus next(Block* block) override;
 
@@ -126,31 +126,32 @@ private:
 
         RowsetReaderSharedPtr _rs_reader;
         Reader* _reader = nullptr;
-        uint32_t _current_row = 0;
+        uint16_t _current_row = 0;
         Block _block;
     };
 
     // Iterate from LevelIterators (maybe Level0Iterators or Level1Iterator or mixed)
     class Level1Iterator : public LevelIterator {
     public:
-        Level1Iterator(const std::list<LevelIterator*>& children, Reader* reader, bool merge, bool reverse);
+        Level1Iterator(const std::list<LevelIterator*>& children, Reader* reader, bool merge,
+                       bool skip_same);
 
         OLAPStatus init() override;
 
         int64_t version() const override;
 
-        OLAPStatus current_row(const Block** block, uint32_t* row) const override;
+        OLAPStatus current_row(IteratorRowRef* ref) const override;
 
-        OLAPStatus next(const Block** block, uint32_t* row) override;
+        OLAPStatus next(IteratorRowRef* ref) override;
 
         OLAPStatus next(Block* block) override;
 
         ~Level1Iterator();
 
     private:
-        inline OLAPStatus _merge_next(const Block** block, uint32_t* row);
+        inline OLAPStatus _merge_next(IteratorRowRef* ref);
 
-        inline OLAPStatus _normal_next(const Block** block, uint32_t* row);
+        inline OLAPStatus _normal_next(IteratorRowRef* ref);
 
         inline OLAPStatus _normal_next(Block* block);
 
@@ -168,7 +169,8 @@ private:
         // from the first rowset, the second rowset, .., the last rowset. The output of CollectorIterator is also
         // *partially* ordered.
         bool _merge = true;
-        bool _reverse = false;
+
+        bool _skip_same;
         // used when `_merge == true`
         std::unique_ptr<MergeHeap> _heap;
         // used when `_merge == false`
@@ -182,9 +184,10 @@ private:
     std::list<LevelIterator*> _children;
 
     bool _merge = true;
-    bool _reverse = false;
     // Hold reader point to access read params, such as fetch conditions.
     Reader* _reader = nullptr;
+
+    bool _skip_same;
 };
 
 } // namespace vectorized

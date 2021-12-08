@@ -64,9 +64,7 @@ public:
     std::string get_name() const override { return "Nullable(" + nested_column->get_name() + ")"; }
     MutableColumnPtr clone_resized(size_t size) const override;
     size_t size() const override { return nested_column->size(); }
-    bool is_null_at(size_t n) const override {
-        return assert_cast<const ColumnUInt8&>(*null_map).get_data()[n] != 0;
-    }
+    bool is_null_at(size_t n) const override { return (*null_map_raw)[n] != 0; }
     Field operator[](size_t n) const override;
     void get(size_t n, Field& res) const override;
     bool get_bool(size_t n) const override {
@@ -137,6 +135,9 @@ public:
     IColumn& get_nested_column() { return *nested_column; }
     const IColumn& get_nested_column() const { return *nested_column; }
 
+    IColumn& get_nested_column_raw() { return *nested_column_raw; }
+    const IColumn& get_nested_column_raw() const { return *nested_column_raw; }
+
     const ColumnPtr& get_nested_column_ptr() const { return nested_column; }
 
     MutableColumnPtr get_nested_column_ptr() { return nested_column->assume_mutable(); }
@@ -202,19 +203,12 @@ public:
         return false;
     }
 
-    void replace_column_data(const IColumn& rhs, size_t row) override {
-        DCHECK(size() == 1);
-        const ColumnNullable& nullable_rhs = assert_cast<const ColumnNullable&>(rhs);
-        null_map->replace_column_data(*nullable_rhs.null_map, row);
-
-        bool rval_is_null = nullable_rhs.is_null_at(row);
-        if (!rval_is_null)
-            nested_column->replace_column_data(*nullable_rhs.nested_column, row);
-    }
-
 private:
     WrappedPtr nested_column;
     WrappedPtr null_map;
+
+    IColumn* nested_column_raw;
+    NullMap* null_map_raw;
 
     template <bool negative>
     void apply_null_map_impl(const ColumnUInt8& map);
