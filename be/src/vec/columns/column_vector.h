@@ -231,6 +231,11 @@ public:
 
     T& get_element(size_t n) { return data[n]; }
 
+    void replace_column_data(const IColumn& rhs, size_t row, size_t self_row = 0) override {
+        DCHECK(size() > self_row);
+        data[self_row] = static_cast<const Self&>(rhs).data[row];
+    }
+
 protected:
     Container data;
 };

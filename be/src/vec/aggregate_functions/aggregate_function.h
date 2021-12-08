@@ -129,13 +129,6 @@ public:
     virtual void add_batch_single_place(size_t batch_size, AggregateDataPtr place,
                                         const IColumn** columns, Arena* arena) const = 0;
 
-    // only used at agg reader at storage layer now
-    virtual void add_batch_range(size_t batch_begin, size_t batch_end, AggregateDataPtr place,
-                                 const IColumn** columns, Arena* arena) = 0;
-
-    // erase has_null_map for nullable agg function
-    virtual void erase_has_null(const IColumn* column) = 0;
-
     /** This is used for runtime code generation to determine, which header files to include in generated source.
       * Always implement it as
       * const char * get_header_file_path() const override { return __FILE__; }
@@ -176,15 +169,6 @@ public:
         for (size_t i = 0; i < batch_size; ++i)
             static_cast<const Derived*>(this)->add(place, columns, i, arena);
     }
-
-    void add_batch_range(size_t batch_begin, size_t batch_end, AggregateDataPtr place,
-                         const IColumn** columns, Arena* arena) override {
-        for (size_t i = batch_begin; i <= batch_end; ++i)
-            static_cast<const Derived*>(this)->add(place, columns, i, arena);
-    }
-
-    // do nothing on not nullable
-    void erase_has_null(const IColumn* column) {}
 };
 
 /// Implements several methods for manipulation with data. T - type of structure with data for aggregation.

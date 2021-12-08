@@ -385,6 +385,10 @@ public:
       */
     String dump_structure() const;
 
+    // use in agg key replace only
+    // should replace according 0,1,2... ,size,0,1,2...
+    virtual void replace_column_data(const IColumn&, size_t row, size_t self_row = 0) = 0;
+
 protected:
     /// Template is to devirtualize calls to insert_from method.
     /// In derived classes (that use final keyword), implement scatter method as call to scatter_impl.

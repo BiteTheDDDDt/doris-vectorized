@@ -203,6 +203,16 @@ public:
         return false;
     }
 
+    void replace_column_data(const IColumn& rhs, size_t row, size_t self_row = 0) override {
+        DCHECK(size() > 1);
+        const ColumnNullable& nullable_rhs = assert_cast<const ColumnNullable&>(rhs);
+        null_map->replace_column_data(*nullable_rhs.null_map, row, self_row);
+
+        bool rval_is_null = nullable_rhs.is_null_at(row);
+        if (!rval_is_null)
+            nested_column->replace_column_data(*nullable_rhs.nested_column, row, self_row);
+    }
+
 private:
     WrappedPtr nested_column;
     WrappedPtr null_map;

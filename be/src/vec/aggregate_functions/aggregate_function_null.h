@@ -17,8 +17,6 @@
 
 #pragma once
 
-#include <parallel_hashmap/phmap.h>
-
 #include <array>
 
 #include "common/logging.h"
@@ -200,33 +198,6 @@ public:
                                                           &nested_column, arena);
         }
     }
-
-    void add_batch_range(size_t batch_begin, size_t batch_end, AggregateDataPtr place,
-                         const IColumn** columns, Arena* arena) override {
-        const ColumnNullable* column = assert_cast<const ColumnNullable*>(columns[0]);
-        if (!_has_null.count(columns[0])) {
-            _has_null[columns[0]] = column->has_null();
-        }
-
-        if (_has_null[columns[0]]) {
-            for (size_t i = batch_begin; i <= batch_end; ++i) {
-                if (!column->is_null_at(i)) {
-                    this->set_flag(place);
-                    this->add(place, columns, i, arena);
-                }
-            }
-        } else {
-            this->set_flag(place);
-            const IColumn* nested_column = &column->get_nested_column();
-            this->nested_function->add_batch_range(
-                    batch_begin, batch_end, this->nested_place(place), &nested_column, arena);
-        }
-    }
-
-    void erase_has_null(const IColumn* column) { _has_null.erase(column); }
-
-private:
-    phmap::flat_hash_map<const IColumn*, bool> _has_null;
 };
 
 template <bool result_is_nullable>

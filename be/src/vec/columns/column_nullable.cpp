@@ -159,7 +159,9 @@ void ColumnNullable::insert_range_from_not_nullable(const IColumn& src, size_t s
 
 void ColumnNullable::insert_many_from_not_nullable(const IColumn& src, size_t position,
                                                    size_t length) {
-    for (size_t i = 0; i < length; ++i) insert_from_not_nullable(src, position);
+    for (size_t i = 0; i < length; ++i) {
+        insert_from_not_nullable(src, position);
+    }
 }
 
 void ColumnNullable::pop_back(size_t n) {

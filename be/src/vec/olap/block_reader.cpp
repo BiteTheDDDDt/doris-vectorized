@@ -81,6 +81,9 @@ OLAPStatus BlockReader::_init_collect_iter(const ReaderParams& read_params,
         _eof = status == OLAP_ERR_DATA_EOF;
 
         if (!_eof && is_agg) {
+            _stored_data_block = _next_row.block->create_same_struct_block(_batch_size);
+            _stored_data_columns = _stored_data_block->mutate_columns();
+
             for (auto idx : _agg_columns_idx) {
                 FieldAggregationMethod agg_method =
                         tablet()->tablet_schema().column(idx).aggregation();
@@ -285,55 +288,27 @@ void BlockReader::_insert_data(doris::vectorized::MutableColumns& columns, bool 
 }
 
 void BlockReader::_append_agg_data() {
-    _stored_row_ref.emplace_back(_next_row);
+    for (auto idx : _agg_columns_idx) {
+        _stored_data_columns[idx]->replace_column_data(
+                *(_next_row.block)->get_by_position(idx).column, _next_row.row_pos, _agg_data_num);
+    }
+    _agg_data_num++;
 
-    bool is_last = _next_row.block->rows() == _next_row.row_pos + 1;
-    // execute aggregate when have `batch_size` column or some ref invalid soon
-    if (_stored_row_ref.size() == _batch_size || is_last) {
+    if (_stored_data_block->rows() == _batch_size) {
         _update_agg_value();
-
-        if (is_last) {
-            // some block update data, should calculate 'has_null' again
-            for (int i = 0; i < _agg_columns_idx.size(); i++) {
-                AggregateFunctionPtr function = _agg_functions[i];
-                function->erase_has_null(
-                        _next_row.block->get_by_position(_agg_columns_idx[i]).column_raw);
-            }
-        }
     }
 }
 
 void BlockReader::_update_agg_value() {
-    if (!_stored_row_ref.size()) {
-        return;
-    }
-
     for (int i = 0; i < _agg_columns_idx.size(); i++) {
         AggregateFunctionPtr function = _agg_functions[i];
         AggregateDataPtr place = _agg_places[i];
+        auto column_ptr = _stored_data_columns[_agg_columns_idx[i]].get();
 
-        int begin = 0;
-        int end = 1;
-
-        // execute aggregate for continuous row at same block
-        auto add_batch = [&]() {
-            auto column_ptr =
-                    _stored_row_ref[begin].block->get_by_position(_agg_columns_idx[i]).column_raw;
-            function->add_batch_range(_stored_row_ref[begin].row_pos,
-                                      _stored_row_ref[end - 1].row_pos, place,
-                                      const_cast<const IColumn**>(&column_ptr), nullptr);
-        };
-
-        for (; end < _stored_row_ref.size(); end++) {
-            if (_stored_row_ref[end].block != _stored_row_ref[begin].block) {
-                add_batch();
-                begin = end;
-            }
-        }
-        add_batch();
+        function->add_batch_single_place(_agg_data_num, place,
+                                         const_cast<const IColumn**>(&column_ptr), nullptr);
     }
-
-    _stored_row_ref.clear();
+    _agg_data_num = 0;
 }
 
 } // namespace doris::vectorized

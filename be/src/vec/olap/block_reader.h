@@ -108,7 +108,6 @@ private:
     std::unique_ptr<VCollectIterator> _collect_iter;
 
     IteratorRowRef _next_row;
-    std::vector<IteratorRowRef> _stored_row_ref;
 
     std::vector<AggregateFunctionPtr> _agg_functions;
     std::vector<AggregateDataPtr> _agg_places;
@@ -119,6 +118,10 @@ private:
 
     uint32_t _key_num; // number of key columns
     uint32_t _batch_size;
+
+    std::unique_ptr<Block> _stored_data_block;
+    MutableColumns _stored_data_columns;
+    int _agg_data_num = 0; // number of stored agg data
 
     bool _eof = false;
 
