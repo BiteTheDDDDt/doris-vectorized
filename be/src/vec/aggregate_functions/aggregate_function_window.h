@@ -168,6 +168,7 @@ public:
         _is_null = false;
         _value = {};
     }
+
 private:
     StringRef _value;
     bool _is_null;
@@ -321,7 +322,8 @@ struct WindowFunctionFirstData : Data {
         if (this->has_set_value()) {
             return;
         }
-        if (frame_start < frame_end && frame_end <= partition_start) { //rewrite last_value when under partition
+        if (frame_start < frame_end &&
+            frame_end <= partition_start) { //rewrite last_value when under partition
             this->set_is_null();            //so no need more judge
             return;
         }
@@ -336,7 +338,8 @@ struct WindowFunctionLastData : Data {
     void add_range_single_place(int64_t partition_start, int64_t partition_end, int64_t frame_start,
                                 int64_t frame_end, const IColumn** columns) {
         if ((frame_start < frame_end) &&
-            ((frame_end <= partition_start) || (frame_start >= partition_end))) { //beyond or under partition, set null
+            ((frame_end <= partition_start) ||
+             (frame_start >= partition_end))) { //beyond or under partition, set null
             this->set_is_null();
             return;
         }
@@ -370,7 +373,10 @@ public:
         this->data(place).insert_result_into(to);
     }
 
-    void add(AggregateDataPtr place, const IColumn** columns, size_t row_num, Arena*) const override {}
+    void add(AggregateDataPtr place, const IColumn** columns, size_t row_num,
+             Arena* arena) const override {
+        this->data(place).add_range_single_place(row_num, row_num, columns, arena, row_num);
+    }
     void merge(AggregateDataPtr place, ConstAggregateDataPtr rhs, Arena*) const override {}
     void serialize(ConstAggregateDataPtr place, BufferWritable& buf) const override {}
     void deserialize(AggregateDataPtr place, BufferReadable& buf, Arena*) const override {}
@@ -380,7 +386,7 @@ private:
     DataTypePtr _argument_type;
 };
 
-template <typename T, bool is_nullable, bool is_string>
+template <typename T, bool is_nullable, bool is_string, bool is_copy>
 struct FirstAndLastData {
 public:
     bool has_init() const { return _is_init; }
@@ -420,7 +426,7 @@ public:
     void get_result(const IColumn** columns, int64_t pos) {
         if constexpr (is_nullable) {
             const auto* nullable_column = check_and_get_column<ColumnNullable>(columns[0]);
-            if (nullable_column && nullable_column->is_null_at(pos)) { 
+            if (nullable_column && nullable_column->is_null_at(pos)) {
                 _is_null = true;
                 _has_value = true;
                 return;
@@ -428,26 +434,37 @@ public:
             if constexpr (is_string) {
                 const auto* sources = check_and_get_column<ColumnString>(
                         nullable_column->get_nested_column_ptr().get());
-                _value = sources->get_data_at(pos);
+                update_value(sources->get_data_at(pos));
             } else {
                 const auto* sources = check_and_get_column<ColumnVector<T>>(
                         nullable_column->get_nested_column_ptr().get());
-                _value = sources->get_data_at(pos);
+                update_value(sources->get_data_at(pos));
             }
         } else {
             if constexpr (is_string) {
                 const auto* sources = check_and_get_column<ColumnString>(columns[0]);
-                _value = sources->get_data_at(pos);
+                update_value(sources->get_data_at(pos));
             } else {
                 const auto* sources = check_and_get_column<ColumnVector<T>>(columns[0]);
-                _value = sources->get_data_at(pos);
+                update_value(sources->get_data_at(pos));
             }
         }
         _is_null = false;
         _has_value = true;
     }
+
 private:
+    void update_value(const StringRef& data) {
+        if constexpr (is_copy) {
+            _copy_data = data.to_string();
+            _value = StringRef(_copy_data);
+        } else {
+            _value = data;
+        }
+    }
+
     StringRef _value;
+    std::string _copy_data;
     bool _is_init = false;
     bool _is_null = false;
     bool _has_value = false;
@@ -474,4 +491,18 @@ struct WindowFunctionLastData : Data {
     static const char* name() { return "last_value"; }
 };
 
+AggregateFunctionPtr create_aggregate_function_replace_if_not_null(const std::string& name,
+                                                                   const DataTypes& argument_types,
+                                                                   const Array& parameters,
+                                                                   const bool result_is_nullable);
+
+AggregateFunctionPtr create_aggregate_function_replace(const std::string& name,
+                                                       const DataTypes& argument_types,
+                                                       const Array& parameters,
+                                                       const bool result_is_nullable);
+
+AggregateFunctionPtr create_aggregate_function_replace_nullable(const std::string& name,
+                                                                const DataTypes& argument_types,
+                                                                const Array& parameters,
+                                                                const bool result_is_nullable);
 } // namespace doris::vectorized
